@@ -1,0 +1,23 @@
+.{
+    .name = .gdextz,
+    .version = "0.0.0",
+    .fingerprint = 0x651855c5bcb5575b,
+    .minimum_zig_version = "0.14.1",
+
+    .dependencies = .{
+        .godot_cpp = .{
+            .url = "https://github.com/godotengine/godot-cpp/archive/refs/tags/godot-4.4.1-stable.tar.gz",
+            .hash = "N-V-__8AANvNeAD_SV1i3OCIDHR74eH7M2BTkpa3UyVKTHph",
+        },
+        .mustache = .{
+            .url = "git+https://github.com/batiati/mustache-zig#cb205f571b0a676ee5f66e8bed383f4b98c63209",
+            .hash = "mustache-0.0.1-AAAAAICwCwBhaN2Ad6V2JfoAXv2jLMcSoUxVTu5XpoEs",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
