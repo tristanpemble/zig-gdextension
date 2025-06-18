@@ -8,24 +8,23 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    // Load the GDExtension API definitions
+    // Parse extension_api.json
     const cwd = fs.cwd();
     const path = try cwd.realpathAlloc(allocator, "extension_api.json");
     const contents = try cwd.readFileAlloc(allocator, path, 10 * 1024 * 1024);
-    const api = try Api.parseLeaky(allocator, contents);
+    const json = try Json.parse(allocator, contents);
+    const api = try Api.init(allocator, &json.value, .{});
 
-    // Run the generator
-    const generator = try Generator.init(api);
-    generator.run();
+    var generator = try Generator.init(api);
+    try generator.run(allocator, std.io.getStdOut().writer());
 }
 
 const std = @import("std");
 
 const Api = @import("Api.zig");
 const Generator = @import("Generator.zig");
+const Json = @import("Json.zig");
 
 const ArenaAllocator = std.heap.ArenaAllocator;
 const DebugAllocator = std.heap.DebugAllocator;
 const fs = std.fs;
-const io = std.io;
-const json = std.json;

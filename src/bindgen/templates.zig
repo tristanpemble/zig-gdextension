@@ -5,18 +5,10 @@ pub const module =
 ;
 
 pub const class =
-    \\{{#imports}}
-    \\const {{ident}} = @import({{path}});
-    \\{{/imports}}
+    \\pub const FART = struct {
     \\
-    \\{{#constants}}
-    \\{{/constants}}
+    \\};
     \\
-    \\{{#fields}}
-    \\{{/fields}}
-    \\
-    \\{{#methods}}
-    \\{{/methods}}
 ;
 
 pub const @"enum" =

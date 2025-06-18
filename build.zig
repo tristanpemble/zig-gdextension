@@ -19,12 +19,14 @@ pub fn build(b: *Build) void {
 
     // Targets
     const bindgen = buildBindgen(b, target, optimize);
+    const case = buildCase(b, target, optimize);
     const godot = buildGodot(b, target, optimize);
     const lib = buildLib(b, target, optimize);
     const mustache = buildMustache(b, target, optimize);
     const tests = buildTests(b, lib.mod);
 
     // Dependencies
+    bindgen.mod.addImport("case", case.mod);
     bindgen.mod.addImport("godot", godot.mod);
     bindgen.mod.addImport("mustache", mustache.mod);
     lib.mod.addImport("godot", godot.mod);
@@ -75,6 +77,18 @@ pub fn buildBindgen(b: *Build, target: Target, optimize: Optimize) ExeTarget {
     }
 
     return .{ .cmd = cmd, .exe = exe, .mod = mod };
+}
+
+// Case
+pub fn buildCase(b: *Build, target: Target, optimize: Optimize) DepTarget {
+    const dep = b.dependency("case", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const mod = dep.module("case");
+
+    return .{ .dep = dep, .mod = mod };
 }
 
 // Godot
