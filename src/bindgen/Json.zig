@@ -25,6 +25,13 @@ native_structures: []NativeStructure,
 singletons: []Singleton,
 utility_functions: []UtilityFunction,
 
+pub fn is_singleton(self: *const Json, name: []const u8) bool {
+    for (self.singletons) |singleton| {
+        if (std.mem.eql(u8, singleton.name, name)) return true;
+    }
+    return false;
+}
+
 pub const Header = struct {
     version_major: i64,
     version_minor: i64,
