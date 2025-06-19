@@ -6,6 +6,15 @@
 
 pub fn print(api: Api, writer: anytype) !void {
     try printBanner(0,
+        \\Builtins
+    , writer);
+    var builtins_iter = api.builtins.iterator();
+    while (builtins_iter.next()) |entry| {
+        if (builtins_iter.index > 1) try writer.writeAll("\n");
+        try printBuiltin(entry.value_ptr, writer);
+    }
+
+    try printBanner(0,
         \\Classes
     , writer);
     var class_iter = api.classes.iterator();
@@ -15,15 +24,50 @@ pub fn print(api: Api, writer: anytype) !void {
     }
 }
 
-fn printClass(class: *const Api.Class, w: anytype) !void {
+fn printArguments(arguments: []const Api.Argument, w: anytype) !void {
+    for (arguments, 0..) |arg, i| {
+        if (i > 0) try w.writeAll(", ");
+        try w.print("{s}: {s}", .{ arg.name, arg.type });
+    }
+}
+
+fn printBuiltin(builtin: *const Api.Builtin, w: anytype) !void {
     try w.print(
         \\pub const {s} = struct {{
         \\
-    , .{class.getName()});
+    , .{builtin.name});
 
-    switch (class.*) {
-        .builtin => |builtin| try printBuiltinClass(&builtin, w),
-        .engine => |engine| try printEngineClass(&engine, w),
+    if (builtin.constants.values().len > 0) {
+        try printBanner(1,
+            \\Constants
+        , w);
+        var constant_iter = builtin.constants.iterator();
+        while (constant_iter.next()) |constant| {
+            try printClassConstant(constant.value_ptr, w);
+        }
+        try w.writeAll("\n");
+    }
+
+    if (builtin.enums.values().len > 0) {
+        try printBanner(1,
+            \\Enums
+        , w);
+        var enum_iter = builtin.enums.iterator();
+        while (enum_iter.next()) |entry| {
+            try printClassEnum(entry.value_ptr, w);
+        }
+        try w.writeAll("\n");
+    }
+
+    if (builtin.methods.values().len > 0) {
+        try printBanner(1,
+            \\Methods
+        , w);
+        var method_iter = builtin.methods.iterator();
+        while (method_iter.next()) |method| {
+            if (method_iter.index > 1) try w.writeAll("\n");
+            try printBuiltinMethod(builtin, method.value_ptr, w);
+        }
     }
 
     try w.print(
@@ -32,42 +76,7 @@ fn printClass(class: *const Api.Class, w: anytype) !void {
     , .{});
 }
 
-fn printBuiltinClass(class: *const Api.Class.Builtin, w: anytype) !void {
-    if (class.constants.values().len > 0) {
-        try printBanner(1,
-            \\Constants
-        , w);
-        var constant_iter = class.constants.iterator();
-        while (constant_iter.next()) |constant| {
-            try printConstant(constant.value_ptr, w);
-        }
-        try w.writeAll("\n");
-    }
-
-    if (class.enums.values().len > 0) {
-        try printBanner(1,
-            \\Enums
-        , w);
-        var enum_iter = class.enums.iterator();
-        while (enum_iter.next()) |entry| {
-            try printClassEnum(entry.value_ptr, w);
-        }
-        try w.writeAll("\n");
-    }
-
-    if (class.methods.values().len > 0) {
-        try printBanner(1,
-            \\Methods
-        , w);
-        var method_iter = class.methods.iterator();
-        while (method_iter.next()) |method| {
-            if (method_iter.index > 1) try w.writeAll("\n");
-            try printBuiltinMethod(class, method.value_ptr, w);
-        }
-    }
-}
-
-fn printBuiltinMethod(class: *const Api.Class.Builtin, method: *const Api.Method, w: anytype) !void {
+fn printBuiltinMethod(builtin: *const Api.Builtin, method: *const Api.Method, w: anytype) !void {
     if (method.is_static) {
         try w.print(
             \\    pub fn {s}(args: anytype) !void {{
@@ -78,7 +87,7 @@ fn printBuiltinMethod(class: *const Api.Class.Builtin, method: *const Api.Method
         try w.print(
             \\    pub fn {s}(self: {s}{s}, args: anytype) !void {{
             \\
-        , .{ method.name, ptr, class.name });
+        , .{ method.name, ptr, builtin.name });
     }
 
     try w.print(
@@ -87,12 +96,17 @@ fn printBuiltinMethod(class: *const Api.Class.Builtin, method: *const Api.Method
     , .{});
 }
 
-fn printEngineClass(class: *const Api.Class.Engine, w: anytype) !void {
-    if (class.inherits.len > 0) {
+fn printClass(class: *const Api.Class, w: anytype) !void {
+    try w.print(
+        \\pub const {s} = struct {{
+        \\
+    , .{class.name});
+
+    if (class.inherits) |inherits| {
         try w.print(
             \\    pub const Base = {s};
             \\
-        , .{class.inherits});
+        , .{inherits});
     }
 
     if (class.constants.values().len > 0) {
@@ -101,7 +115,7 @@ fn printEngineClass(class: *const Api.Class.Engine, w: anytype) !void {
         , w);
         var constant_iter = class.constants.iterator();
         while (constant_iter.next()) |entry| {
-            try printConstant(entry.value_ptr, w);
+            try printClassConstant(entry.value_ptr, w);
         }
         try w.writeAll("\n");
     }
@@ -129,6 +143,20 @@ fn printEngineClass(class: *const Api.Class.Engine, w: anytype) !void {
         try w.writeAll("\n");
     }
 
+    if (class.is_instantiable) {
+        try printBanner(1,
+            \\Constructors
+        , w);
+        try w.writeAll("\n");
+
+        try w.print(
+            \\    pub fn init() {s} {{
+            \\        @panic("todo");
+            \\    }}
+            \\
+        , .{class.name});
+    }
+
     if (class.methods.values().len > 0) {
         try printBanner(1,
             \\Methods
@@ -136,32 +164,17 @@ fn printEngineClass(class: *const Api.Class.Engine, w: anytype) !void {
         var method_iter = class.methods.iterator();
         while (method_iter.next()) |entry| {
             if (method_iter.index > 1) try w.writeAll("\n");
-            try printEngineMethod(class, entry.value_ptr, w);
+            try printClassMethod(class, entry.value_ptr, w);
         }
-    }
-}
-
-fn printEngineMethod(class: *const Api.Class.Engine, method: *const Api.Method, w: anytype) !void {
-    if (method.is_static) {
-        try w.print(
-            \\    pub fn {s}(args: anytype) !void {{
-            \\
-        , .{method.name});
-    } else {
-        const ptr = if (method.is_const) "*const " else "*";
-        try w.print(
-            \\    pub fn {s}(self: {s}{s}, args: anytype) !void {{
-            \\
-        , .{ method.name, ptr, class.name });
     }
 
     try w.print(
-        \\    }}
+        \\}};
         \\
     , .{});
 }
 
-fn printConstant(constant: *const Api.Constant, w: anytype) !void {
+fn printClassConstant(constant: *const Api.Constant, w: anytype) !void {
     try w.print(
         \\    pub const {s}: {s} = {s};
         \\
@@ -188,25 +201,45 @@ fn printClassEnum(@"enum": *const Api.Enum, w: anytype) !void {
     , .{});
 }
 
-fn printClassProperty(class: *const Api.Class.Engine, property: *const Api.Class.Property, w: anytype) !void {
-    if (property.getter.len > 0) {
+fn printClassMethod(class: *const Api.Class, method: *const Api.Method, w: anytype) !void {
+    if (method.is_static) {
+        try w.print(
+            \\    pub fn {s}(args: anytype) !void {{
+            \\
+        , .{method.name});
+    } else {
+        const ptr = if (method.is_const) "*const " else "*";
+        try w.print(
+            \\    pub fn {s}(self: {s}{s}, args: anytype) !void {{
+            \\
+        , .{ method.name, ptr, class.name });
+    }
+
+    try w.print(
+        \\    }}
+        \\
+    , .{});
+}
+
+fn printClassProperty(class: *const Api.Class, property: *const Api.Property, w: anytype) !void {
+    if (property.getter) |getter| {
         try w.print(
             \\    pub fn {s}(self: *const {s}) !{s} {{
             \\    }}
             \\
-        , .{ property.getter, class.name, property.type });
+        , .{ getter, class.name, property.type });
     }
 
-    if (property.getter.len > 0 and property.setter.len > 0) {
+    if (property.getter != null and property.setter != null) {
         try w.writeAll("\n");
     }
 
-    if (property.setter.len > 0) {
+    if (property.setter) |setter| {
         try w.print(
             \\    pub fn {s}(self: *const {s}, value: {s}) !void {{
             \\    }}
             \\
-        , .{ property.setter, class.name, property.type });
+        , .{ setter, class.name, property.type });
     }
 }
 
