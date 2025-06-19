@@ -15,15 +15,15 @@ pub fn parseLeaky(allocator: Allocator, contents: []const u8) !Json {
 }
 
 header: Header,
+builtin_classes: []Builtin,
 builtin_class_sizes: []BuildConfig.Sizes,
 builtin_class_member_offsets: []BuildConfig.Offsets,
-global_enums: []GlobalEnum,
-global_constants: []GlobalConstant,
-utility_functions: []UtilityFunction,
-builtin_classes: []Builtin,
 classes: []Class,
-singletons: []Singleton,
+global_constants: []GlobalConstant,
+global_enums: []GlobalEnum,
 native_structures: []NativeStructure,
+singletons: []Singleton,
+utility_functions: []UtilityFunction,
 
 pub const Header = struct {
     version_major: i64,
