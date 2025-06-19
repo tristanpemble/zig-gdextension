@@ -11,18 +11,7 @@ enums: HashMap(Enum) = .{},
 functions: HashMap(Function) = .{},
 structs: HashMap(Struct) = .{},
 
-pub const Config = struct {
-    case: struct {
-        argument: case.Case = .snake,
-        constant: case.Case = .snake,
-        function: case.Case = .camel,
-        property: case.Case = .snake,
-        type: case.Case = .pascal,
-        variant: case.Case = .snake,
-    } = .{},
-};
-
-pub fn init(allocator: Allocator, json: *const Json, comptime config: Config) !Api {
+pub fn init(allocator: Allocator, json: *const Json) !Api {
     var api = Api{};
 
     // Singletons
@@ -33,37 +22,37 @@ pub fn init(allocator: Allocator, json: *const Json, comptime config: Config) !A
 
     // Builtins
     for (json.builtin_classes) |json_builtin| {
-        const class = try Builtin.init(allocator, json_builtin, config);
+        const class = try Builtin.init(allocator, json_builtin);
         try api.builtins.put(allocator, class.name, class);
     }
 
     // Classes
     for (json.classes) |json_class| {
-        const class = try Class.init(allocator, json_class, singletons.contains(json_class.name), config);
+        const class = try Class.init(allocator, json_class, singletons.contains(json_class.name));
         try api.classes.put(allocator, class.name, class);
     }
 
     // Functions
     for (json.utility_functions) |json_func| {
-        const func = try Function.init(allocator, json_func, config);
+        const func = try Function.init(allocator, json_func);
         try api.functions.put(allocator, func.name, func);
     }
 
     // Enums
     for (json.global_enums) |json_enum| {
-        const enum_obj = try Enum.initGlobal(allocator, json_enum, config);
+        const enum_obj = try Enum.initGlobal(allocator, json_enum);
         try api.enums.put(allocator, enum_obj.name, enum_obj);
     }
 
     // Constants
     for (json.global_constants) |json_constant| {
-        const constant = try Constant.initGlobal(allocator, json_constant, config);
+        const constant = try Constant.initGlobal(json_constant);
         try api.constants.put(allocator, constant.name, constant);
     }
 
     // Structs
     for (json.native_structures) |json_struct| {
-        const struct_obj = try Struct.init(allocator, json_struct, config);
+        const struct_obj = try Struct.init(json_struct);
         try api.structs.put(allocator, struct_obj.name, struct_obj);
     }
 
@@ -85,10 +74,10 @@ pub const Argument = struct {
     type: []const u8,
     default: ?[]const u8 = null,
 
-    pub fn init(allocator: Allocator, name: []const u8, @"type": []const u8, default: ?[]const u8, comptime config: Config) !Argument {
+    pub fn init(name: []const u8, @"type": []const u8, default: ?[]const u8) !Argument {
         return Argument{
-            .name = try safeName(allocator, config.case.argument, name),
-            .type = try safeName(allocator, config.case.type, @"type"),
+            .name = name,
+            .type = @"type",
             .default = if (default) |d| d else null,
         };
     }
@@ -105,13 +94,10 @@ pub const Builtin = struct {
     methods: HashMap(Method) = .{},
     properties: HashMap(Property) = .{},
 
-    pub fn init(allocator: Allocator, json_builtin: Json.Builtin, comptime config: Config) !Builtin {
+    pub fn init(allocator: Allocator, json_builtin: Json.Builtin) !Builtin {
         var builtin = Builtin{
-            .name = try safeName(allocator, config.case.type, json_builtin.name),
-            .indexing_return_type = if (json_builtin.indexing_return_type) |indexing_return_type|
-                try safeName(allocator, config.case.type, indexing_return_type)
-            else
-                null,
+            .name = json_builtin.name,
+            .indexing_return_type = if (json_builtin.indexing_return_type) |indexing_return_type| indexing_return_type else null,
             .is_keyed = json_builtin.is_keyed,
             .has_destructor = json_builtin.has_destructor,
         };
@@ -119,7 +105,7 @@ pub const Builtin = struct {
         // Constants
         if (json_builtin.constants) |constants| {
             for (constants) |json_constant| {
-                const constant = try Constant.initBuiltin(allocator, json_constant, config);
+                const constant = try Constant.initBuiltin(json_constant);
                 try builtin.constants.put(allocator, constant.name, constant);
             }
         }
@@ -127,7 +113,7 @@ pub const Builtin = struct {
         // Enums
         if (json_builtin.enums) |enums| {
             for (enums) |json_enum| {
-                const enum_obj = try Enum.initBuiltin(allocator, json_enum, config);
+                const enum_obj = try Enum.initBuiltin(allocator, json_enum);
                 try builtin.enums.put(allocator, enum_obj.name, enum_obj);
             }
         }
@@ -135,7 +121,7 @@ pub const Builtin = struct {
         // Methods
         if (json_builtin.methods) |methods| {
             for (methods) |json_method| {
-                const method = try Method.initBuiltin(allocator, json_method, config);
+                const method = try Method.initBuiltin(allocator, json_method);
                 try builtin.methods.put(allocator, method.name, method);
             }
         }
@@ -143,7 +129,7 @@ pub const Builtin = struct {
         // Properties
         if (json_builtin.members) |members| {
             for (members) |json_member| {
-                const property = try Property.initBuiltin(allocator, json_member, config);
+                const property = try Property.initBuiltin(json_member);
                 try builtin.properties.put(allocator, property.name, property);
             }
         }
@@ -179,23 +165,20 @@ pub const Class = struct {
     properties: HashMap(Property) = .{},
     signals: HashMap(Signal) = .{},
 
-    pub fn init(allocator: Allocator, json_class: Json.Class, is_singleton: bool, comptime config: Config) !Class {
+    pub fn init(allocator: Allocator, json_class: Json.Class, is_singleton: bool) !Class {
         var engine = Class{
-            .name = try safeName(allocator, config.case.type, json_class.name),
+            .name = json_class.name,
             .is_refcounted = json_class.is_refcounted,
             .is_instantiable = json_class.is_instantiable,
             .is_singleton = is_singleton,
-            .inherits = if (json_class.inherits) |inherits|
-                try safeName(allocator, config.case.type, inherits)
-            else
-                null,
-            .api_type = try safeName(allocator, config.case.type, json_class.api_type),
+            .inherits = if (json_class.inherits) |inherits| inherits else null,
+            .api_type = json_class.api_type,
         };
 
         // Constants
         if (json_class.constants) |constants| {
             for (constants) |json_constant| {
-                const constant = try Constant.initClass(allocator, json_constant, config);
+                const constant = try Constant.initClass(allocator, json_constant);
                 try engine.constants.put(allocator, constant.name, constant);
             }
         }
@@ -203,7 +186,7 @@ pub const Class = struct {
         // Enums
         if (json_class.enums) |enums| {
             for (enums) |json_enum| {
-                const enum_obj = try Enum.initClass(allocator, json_enum, config);
+                const enum_obj = try Enum.initClass(allocator, json_enum);
                 try engine.enums.put(allocator, enum_obj.name, enum_obj);
             }
         }
@@ -211,7 +194,7 @@ pub const Class = struct {
         // Methods
         if (json_class.methods) |methods| {
             for (methods) |json_method| {
-                const method = try Method.initClass(allocator, json_method, config);
+                const method = try Method.initClass(allocator, json_method);
                 try engine.methods.put(allocator, method.name, method);
             }
         }
@@ -219,7 +202,7 @@ pub const Class = struct {
         // Properties
         if (json_class.properties) |properties| {
             for (properties) |json_prop| {
-                const prop = try Property.initClass(allocator, json_prop, config);
+                const prop = try Property.initClass(json_prop);
                 try engine.properties.put(allocator, prop.name, prop);
             }
         }
@@ -227,7 +210,7 @@ pub const Class = struct {
         // Signals
         if (json_class.signals) |signals| {
             for (signals) |json_signal| {
-                const signal = try Signal.init(allocator, json_signal, config);
+                const signal = try Signal.init(allocator, json_signal);
                 try engine.signals.put(allocator, signal.name, signal);
             }
         }
@@ -257,25 +240,25 @@ pub const Constant = struct {
     type: []const u8,
     value: []const u8,
 
-    pub fn initBuiltin(allocator: Allocator, json_constant: Json.Builtin.Constant, comptime config: Config) !Constant {
+    pub fn initBuiltin(json_constant: Json.Builtin.Constant) !Constant {
         return Constant{
-            .name = try safeName(allocator, config.case.constant, json_constant.name),
-            .type = try safeName(allocator, config.case.type, json_constant.type),
+            .name = json_constant.name,
+            .type = json_constant.type,
             .value = json_constant.value,
         };
     }
 
-    pub fn initClass(allocator: Allocator, json_constant: Json.Class.Constant, comptime config: Config) !Constant {
+    pub fn initClass(allocator: Allocator, json_constant: Json.Class.Constant) !Constant {
         return Constant{
-            .name = try safeName(allocator, config.case.constant, json_constant.name),
+            .name = json_constant.name,
             .type = "int",
             .value = try std.fmt.allocPrint(allocator, "{d}", .{json_constant.value}),
         };
     }
 
-    pub fn initGlobal(allocator: Allocator, json_constant: Json.GlobalConstant, comptime config: Config) !Constant {
+    pub fn initGlobal(json_constant: Json.GlobalConstant) !Constant {
         return Constant{
-            .name = try safeName(allocator, config.case.constant, json_constant.name),
+            .name = json_constant.name,
             .type = "string",
             .value = json_constant.value,
         };
@@ -287,43 +270,43 @@ pub const Enum = struct {
     is_bitfield: bool,
     values: HashMap(Value),
 
-    pub fn initBuiltin(allocator: Allocator, json_enum: Json.Builtin.Enum, comptime config: Config) !Enum {
+    pub fn initBuiltin(allocator: Allocator, json_enum: Json.Builtin.Enum) !Enum {
         var values = HashMap(Value){};
         for (json_enum.values) |json_value| {
-            const value = try Value.init(allocator, json_value.name, json_value.value, config);
+            const value = try Value.init(json_value.name, json_value.value);
             try values.put(allocator, value.name, value);
         }
 
         return Enum{
-            .name = try safeName(allocator, config.case.type, json_enum.name),
+            .name = json_enum.name,
             .is_bitfield = false,
             .values = values,
         };
     }
 
-    pub fn initClass(allocator: Allocator, json_enum: Json.Class.Enum, comptime config: Config) !Enum {
+    pub fn initClass(allocator: Allocator, json_enum: Json.Class.Enum) !Enum {
         var values = HashMap(Value){};
         for (json_enum.values) |json_value| {
-            const value = try Value.init(allocator, json_value.name, json_value.value, config);
+            const value = try Value.init(json_value.name, json_value.value);
             try values.put(allocator, value.name, value);
         }
 
         return Enum{
-            .name = try safeName(allocator, config.case.type, json_enum.name),
+            .name = json_enum.name,
             .is_bitfield = json_enum.is_bitfield,
             .values = values,
         };
     }
 
-    pub fn initGlobal(allocator: Allocator, json_enum: Json.GlobalEnum, comptime config: Config) !Enum {
+    pub fn initGlobal(allocator: Allocator, json_enum: Json.GlobalEnum) !Enum {
         var values = HashMap(Value){};
         for (json_enum.values) |json_value| {
-            const value = try Value.init(allocator, json_value.name, json_value.value, config);
+            const value = try Value.init(json_value.name, json_value.value);
             try values.put(allocator, value.name, value);
         }
 
         return Enum{
-            .name = try safeName(allocator, config.case.type, json_enum.name),
+            .name = json_enum.name,
             .is_bitfield = json_enum.is_bitfield,
             .values = values,
         };
@@ -341,9 +324,9 @@ pub const Enum = struct {
         name: []const u8,
         value: i64,
 
-        pub fn init(allocator: Allocator, name: []const u8, value: i64, comptime config: Config) !Value {
+        pub fn init(name: []const u8, value: i64) !Value {
             return Value{
-                .name = try safeName(allocator, config.case.variant, name),
+                .name = name,
                 .value = value,
             };
         }
@@ -358,17 +341,17 @@ pub const Function = struct {
     hash: u64,
     arguments: HashMap(Argument) = .{},
 
-    pub fn init(allocator: Allocator, json_func: Json.UtilityFunction, comptime config: Config) !Function {
+    pub fn init(allocator: Allocator, json_func: Json.UtilityFunction) !Function {
         var function = Function{
-            .name = try safeName(allocator, config.case.function, json_func.name),
-            .return_type = if (json_func.return_type) |rt| try safeName(allocator, config.case.type, rt) else null,
+            .name = json_func.name,
+            .return_type = if (json_func.return_type) |rt| rt else null,
             .category = json_func.category,
             .is_vararg = json_func.is_vararg,
             .hash = json_func.hash,
         };
 
         for (json_func.arguments) |json_arg| {
-            const argument = try Argument.init(allocator, json_arg.name, json_arg.meta orelse json_arg.type, json_arg.default_value, config);
+            const argument = try Argument.init(json_arg.name, json_arg.meta orelse json_arg.type, json_arg.default_value);
             try function.arguments.put(allocator, argument.name, argument);
         }
 
@@ -400,13 +383,10 @@ pub const Method = struct {
 
     arguments: HashMap(Argument) = .{},
 
-    pub fn initClass(allocator: Allocator, json_method: Json.Class.Method, comptime config: Config) !Method {
+    pub fn initClass(allocator: Allocator, json_method: Json.Class.Method) !Method {
         var method = Method{
-            .name = try safeName(allocator, config.case.function, json_method.name),
-            .return_type = if (json_method.return_value) |rv|
-                try safeName(allocator, config.case.type, rv.meta orelse rv.type)
-            else
-                "void",
+            .name = json_method.name,
+            .return_type = if (json_method.return_value) |rv| rv.meta orelse rv.type else "void",
             .is_const = json_method.is_const,
             .is_static = json_method.is_static,
             .is_vararg = json_method.is_vararg,
@@ -418,7 +398,7 @@ pub const Method = struct {
 
         if (json_method.arguments) |json_arguments| {
             for (json_arguments) |json_argument| {
-                const argument = try Argument.init(allocator, json_argument.name, json_argument.meta orelse json_argument.type, json_argument.default_value, config);
+                const argument = try Argument.init(json_argument.name, json_argument.meta orelse json_argument.type, json_argument.default_value);
                 try method.arguments.put(allocator, argument.name, argument);
             }
         }
@@ -426,9 +406,9 @@ pub const Method = struct {
         return method;
     }
 
-    pub fn initBuiltin(allocator: Allocator, json_method: Json.Builtin.Method, comptime config: Config) !Method {
+    pub fn initBuiltin(allocator: Allocator, json_method: Json.Builtin.Method) !Method {
         var method = Method{
-            .name = try safeName(allocator, config.case.function, json_method.name),
+            .name = json_method.name,
             .return_type = json_method.return_type,
             .is_const = json_method.is_const,
             .is_static = json_method.is_static,
@@ -441,7 +421,7 @@ pub const Method = struct {
 
         if (json_method.arguments) |json_arguments| {
             for (json_arguments) |json_argument| {
-                const argument = try Argument.init(allocator, json_argument.name, json_argument.meta orelse json_argument.type, json_argument.default_value, config);
+                const argument = try Argument.init(json_argument.name, json_argument.meta orelse json_argument.type, json_argument.default_value);
                 try method.arguments.put(allocator, argument.name, argument);
             }
         }
@@ -472,22 +452,22 @@ pub const Property = struct {
     getter: ?[]const u8,
     index: ?i64,
 
-    pub fn initBuiltin(allocator: Allocator, json_prop: Json.Builtin.Member, comptime config: Config) !Property {
+    pub fn initBuiltin(json_prop: Json.Builtin.Member) !Property {
         return Property{
-            .name = try safeName(allocator, config.case.property, json_prop.name),
-            .type = try safeName(allocator, config.case.property, json_prop.type),
+            .name = json_prop.name,
+            .type = json_prop.type,
             .setter = null,
             .getter = null,
             .index = null,
         };
     }
 
-    pub fn initClass(allocator: Allocator, json_prop: Json.Class.Property, comptime config: Config) !Property {
+    pub fn initClass(json_prop: Json.Class.Property) !Property {
         return Property{
-            .name = try safeName(allocator, config.case.property, json_prop.name),
-            .type = try safeName(allocator, config.case.property, json_prop.type),
-            .setter = if (json_prop.setter) |setter| try safeName(allocator, config.case.function, setter) else null,
-            .getter = try safeName(allocator, config.case.function, json_prop.getter),
+            .name = json_prop.name,
+            .type = json_prop.type,
+            .setter = if (json_prop.setter) |setter| setter else null,
+            .getter = json_prop.getter,
             .index = json_prop.index,
         };
     }
@@ -497,14 +477,14 @@ pub const Signal = struct {
     name: []const u8,
     arguments: HashMap(Argument) = .{},
 
-    pub fn init(allocator: Allocator, json_signal: Json.Class.Signal, comptime config: Config) !Signal {
+    pub fn init(allocator: Allocator, json_signal: Json.Class.Signal) !Signal {
         var signal = Signal{
-            .name = try safeName(allocator, config.case.function, json_signal.name),
+            .name = json_signal.name,
         };
 
         if (json_signal.arguments) |args_slice| {
             for (args_slice) |json_arg| {
-                const arg = try Argument.init(allocator, json_arg.name, json_arg.type, null, config);
+                const arg = try Argument.init(json_arg.name, json_arg.type, null);
                 try signal.arguments.put(allocator, arg.name, arg);
             }
         }
@@ -524,30 +504,13 @@ pub const Struct = struct {
     name: []const u8,
     format: []const u8,
 
-    pub fn init(allocator: Allocator, json_struct: Json.NativeStructure, comptime config: Config) !Struct {
+    pub fn init(json_struct: Json.NativeStructure) !Struct {
         return Struct{
-            .name = try safeName(allocator, config.case.type, json_struct.name),
+            .name = json_struct.name,
             .format = json_struct.format,
         };
     }
 };
-
-inline fn safeName(
-    allocator: std.mem.Allocator,
-    comptime case_: case.Case,
-    text: []const u8,
-) ![]const u8 {
-    const name = if (case.of(text, .{}) == case_)
-        text
-    else
-        return try case.allocTo(allocator, case_, text);
-
-    if (std.zig.Token.keywords.has(name)) {
-        return try std.fmt.allocPrint(allocator, "@\"{s}\"", .{name});
-    } else {
-        return name;
-    }
-}
 
 const std = @import("std");
 const case = @import("case");
