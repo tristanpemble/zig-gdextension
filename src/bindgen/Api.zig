@@ -33,13 +33,13 @@ pub fn init(allocator: Allocator, json: *const Json, comptime config: Config) !A
     // Engine classes
     for (json.classes) |json_class| {
         const is_singleton = singletons.contains(json_class.name);
-        const class = Class{ .engine = try Class.EngineClass.init(allocator, json_class, is_singleton, config) };
+        const class = Class{ .engine = try Class.Engine.init(allocator, json_class, is_singleton, config) };
         try api.classes.put(allocator, class.getName(), class);
     }
 
     // Builtin classes
     for (json.builtin_classes) |json_builtin| {
-        const class = Class{ .builtin = try Class.BuiltinClass.init(allocator, json_builtin, config) };
+        const class = Class{ .builtin = try Class.Builtin.init(allocator, json_builtin, config) };
         try api.classes.put(allocator, class.getName(), class);
     }
 
@@ -148,8 +148,8 @@ pub const Argument = struct {
 };
 
 pub const Class = union(enum) {
-    engine: EngineClass,
-    builtin: BuiltinClass,
+    builtin: Builtin,
+    engine: Engine,
 
     pub const Property = struct {
         name: []const u8,
@@ -162,14 +162,14 @@ pub const Class = union(enum) {
             return Property{
                 .name = try safeName(allocator, config.case.type, json_prop.name),
                 .type = json_prop.type,
-                .setter = json_prop.setter,
-                .getter = json_prop.getter,
+                .setter = try safeName(allocator, config.case.function, json_prop.setter),
+                .getter = try safeName(allocator, config.case.function, json_prop.getter),
                 .index = json_prop.index,
             };
         }
     };
 
-    pub const EngineClass = struct {
+    pub const Engine = struct {
         name: []const u8,
         is_refcounted: bool,
         is_instantiable: bool,
@@ -182,8 +182,8 @@ pub const Class = union(enum) {
         signals: HashMap(Signal) = .{},
         properties: HashMap(Property) = .{},
 
-        pub fn init(allocator: Allocator, json_class: Json.Class, is_singleton: bool, comptime config: Config) !EngineClass {
-            var engine = EngineClass{
+        pub fn init(allocator: Allocator, json_class: Json.Class, is_singleton: bool, comptime config: Config) !Engine {
+            var engine = Engine{
                 .name = try safeName(allocator, config.case.type, json_class.name),
                 .is_refcounted = json_class.is_refcounted,
                 .is_instantiable = json_class.is_instantiable,
@@ -252,7 +252,7 @@ pub const Class = union(enum) {
         }
     };
 
-    pub const BuiltinClass = struct {
+    pub const Builtin = struct {
         name: []const u8,
         indexing_return_type: []const u8,
         is_keyed: bool,
@@ -262,8 +262,8 @@ pub const Class = union(enum) {
         enums: HashMap(Enum) = .{},
         members: ?[]Json.NameType,
 
-        pub fn init(allocator: Allocator, json_builtin: Json.BuiltinClass, comptime config: Config) !BuiltinClass {
-            var builtin = BuiltinClass{
+        pub fn init(allocator: Allocator, json_builtin: Json.BuiltinClass, comptime config: Config) !Builtin {
+            var builtin = Builtin{
                 .name = try safeName(allocator, config.case.type, json_builtin.name),
                 .indexing_return_type = json_builtin.indexing_return_type,
                 .is_keyed = json_builtin.is_keyed,

@@ -15,15 +15,14 @@ pub fn main() !void {
     const json = try Json.parse(allocator, contents);
     const api = try Api.init(allocator, &json.value, .{});
 
-    var generator = try Generator.init(api);
-    try generator.run(allocator, std.io.getStdOut().writer());
+    try print(api, std.io.getStdOut().writer());
 }
 
 const std = @import("std");
 
 const Api = @import("Api.zig");
-const Generator = @import("Generator.zig");
 const Json = @import("Json.zig");
+const print = @import("print.zig").print;
 
 const ArenaAllocator = std.heap.ArenaAllocator;
 const DebugAllocator = std.heap.DebugAllocator;
