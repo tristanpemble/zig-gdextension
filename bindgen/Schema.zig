@@ -1,15 +1,15 @@
 //! This type defines the schema for Godot's `extension_api.json`.
 
-const Json = @This();
+const Schema = @This();
 
-pub fn parse(allocator: Allocator, contents: []const u8) !Parsed(Json) {
-    return try std.json.parseFromSlice(Json, allocator, contents, .{
+pub fn parse(allocator: Allocator, contents: []const u8) !Parsed(Schema) {
+    return try std.json.parseFromSlice(Schema, allocator, contents, .{
         .ignore_unknown_fields = false,
     });
 }
 
-pub fn parseLeaky(allocator: Allocator, contents: []const u8) !Json {
-    return try std.json.parseFromSliceLeaky(Json, allocator, contents, .{
+pub fn parseLeaky(allocator: Allocator, contents: []const u8) !Schema {
+    return try std.json.parseFromSliceLeaky(Schema, allocator, contents, .{
         .ignore_unknown_fields = false,
     });
 }
@@ -24,13 +24,6 @@ global_enums: []GlobalEnum,
 native_structures: []NativeStructure,
 singletons: []Singleton,
 utility_functions: []UtilityFunction,
-
-pub fn is_singleton(self: *const Json, name: []const u8) bool {
-    for (self.singletons) |singleton| {
-        if (std.mem.eql(u8, singleton.name, name)) return true;
-    }
-    return false;
-}
 
 pub const Header = struct {
     version_major: i64,

@@ -1,7 +1,5 @@
 pub fn main() !void {
     var gpa: DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-
     var arena = ArenaAllocator.init(gpa.allocator());
     defer arena.deinit();
 
@@ -15,9 +13,6 @@ pub fn main() !void {
     const data = try transform(allocator, json);
 
     const writer = std.io.getStdOut().writer();
-
-    // TODO: remove
-    try @import("writer.zig").write(json, writer);
 
     try render(allocator, data, writer);
 }

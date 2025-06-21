@@ -1,17 +1,35 @@
+interfaces: []Interface = &.{},
+has_builtins: bool,
 builtins: []Builtin = &.{},
+has_classes: bool,
 classes: []Class = &.{},
+has_constants: bool,
 constants: []GlobalConstant = &.{},
+has_enums: bool,
 enums: []GlobalEnum = &.{},
+has_flags: bool,
 flags: []GlobalFlag = &.{},
+has_functions: bool,
 functions: []Function = &.{},
+
+pub const Interface = struct {
+    name: []const u8 = "",
+    proc_name: []const u8 = "",
+    type: []const u8 = "",
+};
 
 pub const Builtin = struct {
     doc: []const u8 = "",
     name: []const u8,
+    has_members: bool,
     members: []Member = &.{},
+    has_constants: bool,
     constants: []Constant = &.{},
+    has_constructors: bool,
     constructors: []Constructor = &.{},
+    has_methods: bool,
     methods: []Method = &.{},
+    has_enums: bool,
     enums: []Enum = &.{},
 
     pub const Member = struct {
@@ -32,6 +50,7 @@ pub const Builtin = struct {
         name: []const u8 = "",
         type: []const u8 = "",
         offset: []const u8 = "",
+        has_args: bool,
         args: []Arg = &.{},
         return_type: []const u8 = "",
 
@@ -46,6 +65,7 @@ pub const Builtin = struct {
         name: []const u8 = "",
         type: []const u8 = "",
         offset: []const u8 = "",
+        has_args: bool,
         args: []Arg = &.{},
         return_type: []const u8 = "",
 
@@ -58,6 +78,7 @@ pub const Builtin = struct {
     pub const Enum = struct {
         doc: []const u8 = "",
         name: []const u8 = "",
+        has_values: bool,
         values: []Value = &.{},
 
         pub const Value = struct {
@@ -68,11 +89,127 @@ pub const Builtin = struct {
     };
 };
 
-pub const Class = struct {};
-pub const GlobalConstant = struct {};
-pub const GlobalEnum = struct {};
-pub const GlobalFlag = struct {};
-pub const Function = struct {};
+pub const Class = struct {
+    doc: []const u8 = "",
+    name: []const u8,
+    inherits: ?[]const u8 = null,
+    is_singleton: bool = false,
+    is_instantiable: bool = false,
+    has_constants: bool,
+    constants: []Constant = &.{},
+    has_enums: bool,
+    enums: []Enum = &.{},
+    has_properties: bool,
+    properties: []Property = &.{},
+    has_static_methods: bool,
+    static_methods: []Method = &.{},
+    has_methods: bool,
+    methods: []Method = &.{},
+    has_virtual_methods: bool,
+    virtual_methods: []Method = &.{},
+
+    pub const Constant = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        value: []const u8 = "",
+    };
+
+    pub const Enum = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        is_bitfield: bool = false,
+        has_values: bool = false,
+        values: []Value = &.{},
+
+        pub const Value = struct {
+            doc: []const u8 = "",
+            name: []const u8 = "",
+            value: []const u8 = "",
+            is_default: bool = false,
+            is_power_of_two: bool = false,
+            bit_pos: u6 = 0,
+        };
+    };
+
+    pub const Property = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        type: []const u8 = "",
+        getter: []const u8 = "",
+        has_setter: bool,
+        setter: ?[]const u8 = null,
+    };
+
+    pub const Method = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        is_const: bool = false,
+        is_virtual: bool = false,
+        return_type: []const u8 = "void",
+        has_args: bool,
+        args: []Arg = &.{},
+
+        pub const Arg = struct {
+            name: []const u8 = "",
+            type: []const u8 = "",
+        };
+    };
+};
+
+pub const GlobalConstant = struct {
+    doc: []const u8 = "",
+    name: []const u8 = "",
+    value: []const u8 = "",
+};
+
+pub const GlobalEnum = struct {
+    doc: []const u8 = "",
+    name: []const u8 = "",
+    has_values: bool,
+    values: []Value = &.{},
+
+    pub const Value = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        value: []const u8 = "",
+    };
+};
+
+pub const GlobalFlag = struct {
+    doc: []const u8 = "",
+    name: []const u8 = "",
+    has_values: bool,
+    values: []Value = &.{},
+
+    pub const Value = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        value: []const u8 = "",
+        is_default: bool = false,
+        is_power_of_two: bool = false,
+        bit_pos: u6 = 0,
+    };
+};
+
+pub const Function = struct {
+    doc: []const u8 = "",
+    category: []const u8 = "",
+    has_functions: bool,
+    functions: []FunctionDef = &.{},
+
+    pub const FunctionDef = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        return_type: []const u8 = "void",
+        has_args: bool,
+        args: []Arg = &.{},
+
+        pub const Arg = struct {
+            name: []const u8 = "",
+            type: []const u8 = "",
+        };
+    };
+};
 
 /// Convenience wrapper for zero-allocation writing of cased string names.
 pub const Name = union(enum) {
@@ -149,7 +286,7 @@ pub const skipped_types: std.StaticStringMap(void) = .initComptime(.{
 /// Exceptions to type naming.
 pub const type_name_exceptions: std.StaticStringMap([]const u8) = .initComptime(.{
     .{ "void", "void" },
-    .{ "Nil", "null" },
+    .{ "Nil", "void" },
     .{ "bool", "bool" },
     .{ "int", "i64" },
     .{ "float", "f64" },
