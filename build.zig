@@ -62,7 +62,7 @@ pub fn buildBindgen(b: *Build, target: Target, optimize: Optimize) ExeTarget {
     const mod = b.addModule("bindgen", .{
         .target = target,
         .optimize = optimize,
-        .root_source_file = b.path("src/bindgen/main.zig"),
+        .root_source_file = b.path("bindgen/main.zig"),
     });
 
     const exe = b.addExecutable(.{
