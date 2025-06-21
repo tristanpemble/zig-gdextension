@@ -3,74 +3,6 @@
 //! - The JSON definitions defined in `./Json.zig`
 //!
 
-/// Types that should not be printed.
-const skipped_types: std.StaticStringMap(void) = .initComptime(.{
-    .{"void"},
-    .{"Nil"},
-    .{"bool"},
-    .{"int"},
-    .{"float"},
-});
-
-/// Exceptions to type naming.
-const type_name_exceptions: std.StaticStringMap([]const u8) = .initComptime(.{
-    .{ "void", "void" },
-    .{ "Nil", "null" },
-    .{ "bool", "bool" },
-    .{ "int", "i64" },
-    .{ "float", "f64" },
-
-    .{ "AESContext", "AesContext" },
-    .{ "AStar2D", "AStar2D" },
-    .{ "AStar3D", "AStar3D" },
-    .{ "AStarGrid2D", "AStarGrid2D" },
-    .{ "MIDIMessage", "MidiMessage" },
-    .{ "TLSOptions", "TlsOptions" },
-    .{ "UDPServer", "UdpServer" },
-    .{ "VBoxContainer", "VBoxContainer" },
-    .{ "VFlowContainer", "VFlowContainer" },
-    .{ "VScrollBar", "VScrollBar" },
-    .{ "VSeparator", "VSeparator" },
-    .{ "VSlider", "VSlider" },
-    .{ "VSplitContainer", "VSplitContainer" },
-    .{ "VoxelGidata", "VoxelGiData" },
-    .{ "XMLParser", "XmlParser" },
-    .{ "XRAnchor3D", "XrAnchor3D" },
-    .{ "XRBodyModifier3D", "XrBodyModifier3D" },
-    .{ "XRBodyTracker", "XrBodyTracker" },
-    .{ "XRCamera3D", "XrCamera3D" },
-    .{ "XRController3D", "XrController3D" },
-    .{ "XRControllerTracker", "XrControllerTracker" },
-    .{ "XRFaceModifier3D", "XrFaceModifier3D" },
-    .{ "XRFaceTracker", "XrFaceTracker" },
-    .{ "XRHandModifier3D", "XrHandModifier3D" },
-    .{ "XRHandTracker", "XrHandTracker" },
-    .{ "XRInterface", "XrInterface" },
-    .{ "XRInterfaceExtension", "XrInterfaceExtension" },
-    .{ "XRNode3D", "XrNode3D" },
-    .{ "XROrigin3D", "XrOrigin3D" },
-    .{ "XRPose", "XrPose" },
-    .{ "XRPositionalTracker", "XrPositionalTracker" },
-    .{ "XRServer", "XrServer" },
-    .{ "XRTracker", "XrTracker" },
-    .{ "XRVRS", "XrVrs" },
-    .{ "ZIPPacker", "ZipPacker" },
-    .{ "ZIPReader", "ZipReader" },
-});
-
-/// Exceptions to the enum prefix rule.
-const enum_prefix_exceptions: std.StaticStringMap([]const u8) = .initComptime(.{
-    .{ "Error", "ERR_" },
-    .{ "MethodFlags", "METHOD_FLAG_" },
-    .{ "MouseButtonMask", "MB_" },
-    .{ "MIDIMessage", "MIDI_MESSAGE" },
-    .{ "PropertyUsageFlags", "PROPERTY_USAGE_" },
-
-    // TODO: Move these under the Variant type.
-    .{ "Variant.Operator", "OP_" },
-    .{ "Variant.Type", "TYPE_" },
-});
-
 pub fn write(json: Json, writer: anytype) !void {
     try writeGlobalConstants(json, writer);
     try writeBuiltins(json, writer);
@@ -84,62 +16,69 @@ fn writeBuiltins(json: Json, writer: anytype) !void {
 
     for (json.builtin_classes, 0..) |builtin, i| {
         if (i > 0) try writer.writeAll("\n");
-        if (skipped_types.has(builtin.name)) continue;
+        if (data.skipped_types.has(builtin.name)) continue;
         try writeBuiltin(&builtin, writer);
     }
 }
 
 fn writeBuiltin(builtin: *const Json.Builtin, w: anytype) !void {
-    try w.print(
-        \\pub const {s} = struct {{
-        \\
-    , .{typeName(builtin.name)});
+    const tmpl = try mustache.parseText(std.heap.page_allocator, template.builtin, .{}, .{ .copy_strings = false });
+    try mustache.render(tmpl.success, .{
+        .builtin = data.Builtin{
+            .doc = "Hello, world!",
+            .name = Name.type_(builtin.name),
+        },
+    }, w);
+    // try w.print(
+    //     \\pub const {s} = struct {{
+    //     \\
+    // , .{Name.type_(builtin.name)});
 
-    if (builtin.constants) |constants| {
-        if (constants.len > 0) {
-            try writeBanner(1, "Constants", w);
-            for (constants) |constant| {
-                try writeBuiltinConstant(&constant, w);
-            }
-            try w.writeAll("\n");
-        }
-    }
+    // if (builtin.constants) |constants| {
+    //     if (constants.len > 0) {
+    //         try writeBanner(1, "Constants", w);
+    //         for (constants) |constant| {
+    //             try writeBuiltinConstant(&constant, w);
+    //         }
+    //         try w.writeAll("\n");
+    //     }
+    // }
 
-    if (builtin.enums) |enums| {
-        if (enums.len > 0) {
-            try writeBanner(1, "Enums", w);
-            for (enums, 0..) |enum_def, i| {
-                if (i > 0) try w.writeAll("\n");
-                try writeBuiltinEnum(&enum_def, w);
-            }
-            try w.writeAll("\n");
-        }
-    }
+    // if (builtin.enums) |enums| {
+    //     if (enums.len > 0) {
+    //         try writeBanner(1, "Enums", w);
+    //         for (enums, 0..) |enum_def, i| {
+    //             if (i > 0) try w.writeAll("\n");
+    //             try writeBuiltinEnum(&enum_def, w);
+    //         }
+    //         try w.writeAll("\n");
+    //     }
+    // }
 
-    if (builtin.methods) |methods| {
-        if (methods.len > 0) {
-            try writeBanner(1, "Methods", w);
-            for (methods, 0..) |method, i| {
-                if (i > 0) try w.writeAll("\n");
-                try writeBuiltinMethod(builtin, &method, w);
-            }
-            try w.writeAll("\n");
-        }
-    }
+    // if (builtin.methods) |methods| {
+    //     if (methods.len > 0) {
+    //         try writeBanner(1, "Methods", w);
+    //         for (methods, 0..) |method, i| {
+    //             if (i > 0) try w.writeAll("\n");
+    //             try writeBuiltinMethod(builtin, &method, w);
+    //         }
+    //         try w.writeAll("\n");
+    //     }
+    // }
 
-    if (builtin.constructors.len > 0) {
-        try writeBanner(1, "Constructors", w);
-        for (builtin.constructors, 0..) |constructor, i| {
-            if (i > 0) try w.writeAll("\n");
-            try writeBuiltinConstructor(builtin, &constructor, w);
-        }
-        try w.writeAll("\n");
-    }
+    // if (builtin.constructors.len > 0) {
+    //     try writeBanner(1, "Constructors", w);
+    //     for (builtin.constructors, 0..) |constructor, i| {
+    //         if (i > 0) try w.writeAll("\n");
+    //         try writeBuiltinConstructor(builtin, &constructor, w);
+    //     }
+    //     try w.writeAll("\n");
+    // }
 
-    try w.print(
-        \\}};
-        \\
-    , .{});
+    // try w.print(
+    //     \\}};
+    //     \\
+    // , .{});
 }
 
 fn writeBuiltinMethod(builtin: *const Json.Builtin, method: *const Json.Builtin.Method, w: anytype) !void {
@@ -148,15 +87,15 @@ fn writeBuiltinMethod(builtin: *const Json.Builtin, method: *const Json.Builtin.
     if (method.is_static) {
         try w.print(
             \\    pub fn {s}(
-        , .{funcName(method.name)});
+        , .{Name.func(method.name)});
     } else {
         const ptr = if (method.is_const) "*const " else "*";
         try w.print(
             \\    pub fn {s}(self: {s}{s}
         , .{
-            funcName(method.name),
+            Name.func(method.name),
             ptr,
-            typeName(builtin.name),
+            Name.type_(builtin.name),
         });
         if (method.arguments != null and method.arguments.?.len > 0) {
             try w.writeAll(", ");
@@ -172,13 +111,13 @@ fn writeBuiltinMethod(builtin: *const Json.Builtin, method: *const Json.Builtin.
         \\        @panic("todo");
         \\    }}
         \\
-    , .{typeName(return_type)});
+    , .{Name.type_(return_type)});
 }
 
 fn writeBuiltinMethodArguments(args: []const Json.Builtin.Method.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
-        try w.print("{s}: {s}", .{ valName(arg.name), typeName(arg.type) });
+        try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
@@ -196,13 +135,13 @@ fn writeBuiltinConstructor(builtin: *const Json.Builtin, constructor: *const Jso
         \\        @panic("todo");
         \\    }}
         \\
-    , .{typeName(builtin.name)});
+    , .{Name.type_(builtin.name)});
 }
 
 fn writeBuiltinConstructorArguments(args: []const Json.Builtin.Constructor.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
-        try w.print("{s}: {s}", .{ valName(arg.name), typeName(arg.type) });
+        try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
@@ -210,14 +149,14 @@ fn writeBuiltinConstant(constant: *const Json.Builtin.Constant, w: anytype) !voi
     try w.print(
         \\    pub const {s}: {s} = {s};
         \\
-    , .{ valName(constant.name), typeName(constant.type), constant.value });
+    , .{ Name.val(constant.name), Name.type_(constant.type), constant.value });
 }
 
 fn writeBuiltinEnum(enum_def: *const Json.Builtin.Enum, w: anytype) !void {
     try w.print(
         \\    pub const {s} = enum(i64) {{
         \\
-    , .{typeName(enum_def.name)});
+    , .{Name.type_(enum_def.name)});
 
     for (enum_def.values) |value| {
         try w.print(
@@ -245,14 +184,14 @@ fn writeClass(class: *const Json.Class, is_singleton: bool, w: anytype) !void {
     try w.print(
         \\pub const {s} = struct {{
         \\
-    , .{typeName(class.name)});
+    , .{Name.type_(class.name)});
 
     if (is_singleton) {
         try w.print(
             \\    pub const Instance: {s} = todo;
             \\
             \\
-        , .{typeName(class.name)});
+        , .{Name.type_(class.name)});
     }
 
     if (class.inherits) |inherits| {
@@ -260,7 +199,7 @@ fn writeClass(class: *const Json.Class, is_singleton: bool, w: anytype) !void {
             \\    pub const Base = {s};
             \\
             \\
-        , .{typeName(inherits)});
+        , .{Name.type_(inherits)});
     }
 
     if (class.constants) |constants| {
@@ -303,7 +242,7 @@ fn writeClass(class: *const Json.Class, is_singleton: bool, w: anytype) !void {
             \\    }}
             \\
             \\
-        , .{typeName(class.name)});
+        , .{Name.type_(class.name)});
     }
 
     if (class.methods) |methods| {
@@ -350,7 +289,7 @@ fn writeClassConstant(constant: *const Json.Class.Constant, w: anytype) !void {
     try w.print(
         \\    pub const {s}: i64 = {d};
         \\
-    , .{ valName(constant.name), constant.value });
+    , .{ Name.val(constant.name), constant.value });
 }
 
 fn writeClassEnum(enum_def: *const Json.Class.Enum, w: anytype) !void {
@@ -358,7 +297,7 @@ fn writeClassEnum(enum_def: *const Json.Class.Enum, w: anytype) !void {
         try w.print(
             \\    pub const {s} = packed struct(i64) {{
             \\
-        , .{typeName(enum_def.name)});
+        , .{Name.type_(enum_def.name)});
 
         // Find the default (if there is one)
         const default: i64 = blk: {
@@ -389,7 +328,7 @@ fn writeClassEnum(enum_def: *const Json.Class.Enum, w: anytype) !void {
                     try w.print(
                         \\        pub const {s}: {s} = @bitCast({d});
                         \\
-                    , .{ enumFieldName(enum_def.name, value.name), typeName(enum_def.name), value.value });
+                    , .{ enumFieldName(enum_def.name, value.name), Name.type_(enum_def.name), value.value });
                 } else {
                     // Fill any gaps with padding fields
                     while (current_bit < bit_pos) {
@@ -412,14 +351,14 @@ fn writeClassEnum(enum_def: *const Json.Class.Enum, w: anytype) !void {
                 try w.print(
                     \\        pub const {s}: {s} = @bitCast({d});
                     \\
-                , .{ enumFieldName(enum_def.name, value.name), typeName(enum_def.name), value.value });
+                , .{ enumFieldName(enum_def.name, value.name), Name.type_(enum_def.name), value.value });
             }
         }
     } else {
         try w.print(
             \\    pub const {s} = enum(i64) {{
             \\
-        , .{typeName(enum_def.name)});
+        , .{Name.type_(enum_def.name)});
 
         for (enum_def.values) |value| {
             try w.print(
@@ -441,12 +380,12 @@ fn writeClassMethod(class: *const Json.Class, method: *const Json.Class.Method, 
     if (method.is_static) {
         try w.print(
             \\    pub fn {s}(
-        , .{funcName(method.name)});
+        , .{Name.func(method.name)});
     } else {
         const ptr = if (method.is_const) "*const " else "*";
         try w.print(
             \\    pub fn {s}(self: {s}{s}
-        , .{ if (method.is_virtual) virtualFuncName(method.name) else funcName(method.name), ptr, typeName(class.name) });
+        , .{ if (method.is_virtual) Name.virtualFunc(method.name) else Name.func(method.name), ptr, Name.type_(class.name) });
         if (method.arguments != null and method.arguments.?.len > 0) {
             try w.writeAll(", ");
         }
@@ -461,13 +400,13 @@ fn writeClassMethod(class: *const Json.Class, method: *const Json.Class.Method, 
         \\        @panic("todo");
         \\    }}
         \\
-    , .{typeName(return_type)});
+    , .{Name.type_(return_type)});
 }
 
 fn writeClassMethodArguments(args: []const Json.Class.Method.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
-        try w.print("{s}: {s}", .{ valName(arg.name), typeName(arg.type) });
+        try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
@@ -478,7 +417,7 @@ fn writeClassProperty(class: *const Json.Class, property: *const Json.Class.Prop
         \\        @panic("todo");
         \\    }}
         \\
-    , .{ funcName(property.getter), typeName(class.name), typeName(property.type) });
+    , .{ Name.func(property.getter), Name.type_(class.name), Name.type_(property.type) });
 
     if (property.setter) |setter| {
         try w.writeAll("\n");
@@ -487,7 +426,7 @@ fn writeClassProperty(class: *const Json.Class, property: *const Json.Class.Prop
             \\        @panic("todo");
             \\    }}
             \\
-        , .{ funcName(setter), typeName(class.name), typeName(property.type) });
+        , .{ Name.func(setter), Name.type_(class.name), Name.type_(property.type) });
     }
 }
 
@@ -500,7 +439,7 @@ fn writeUtilityFunctions(json: Json, writer: anytype) !void {
     for (json.utility_functions) |func| {
         if (!std.mem.eql(u8, func.category, category)) {
             if (i > 0) try writer.print("}};\n", .{});
-            try writer.print("pub const {s} = struct {{\n", .{valName(func.category)});
+            try writer.print("pub const {s} = struct {{\n", .{Name.val(func.category)});
             category = func.category;
             i = 0;
         }
@@ -516,7 +455,7 @@ fn writeUtilityFunction(func: *const Json.UtilityFunction, w: anytype) !void {
 
     try w.print(
         \\    pub fn {s}(
-    , .{funcName(func.name)});
+    , .{Name.func(func.name)});
 
     if (func.arguments.len > 0) {
         try writeUtilityFunctionArguments(func.arguments, w);
@@ -527,13 +466,13 @@ fn writeUtilityFunction(func: *const Json.UtilityFunction, w: anytype) !void {
         \\        @panic("todo");
         \\    }}
         \\
-    , .{typeName(return_type)});
+    , .{Name.type_(return_type)});
 }
 
 fn writeUtilityFunctionArguments(args: []const Json.UtilityFunction.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
-        try w.print("{s}: {s}", .{ valName(arg.name), typeName(arg.type) });
+        try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
@@ -549,7 +488,7 @@ fn writeGlobalConstant(constant: *const Json.GlobalConstant, w: anytype) !void {
     try w.print(
         \\pub const {s} = {s};
         \\
-    , .{ valName(constant.name), constant.value });
+    , .{ Name.val(constant.name), constant.value });
 }
 
 fn writeGlobalEnums(json: Json, writer: anytype) !void {
@@ -566,7 +505,7 @@ fn writeGlobalEnum(enum_def: *const Json.GlobalEnum, w: anytype) !void {
         try w.print(
             \\pub const {s} = packed struct(i64) {{
             \\
-        , .{typeName(enum_def.name)});
+        , .{Name.type_(enum_def.name)});
 
         // Find the default (if there is one)
         const default: i64 = blk: {
@@ -597,7 +536,7 @@ fn writeGlobalEnum(enum_def: *const Json.GlobalEnum, w: anytype) !void {
                     try w.print(
                         \\    pub const {s}: {s} = @bitCast({d});
                         \\
-                    , .{ enumFieldName(enum_def.name, value.name), typeName(enum_def.name), value.value });
+                    , .{ enumFieldName(enum_def.name, value.name), Name.type_(enum_def.name), value.value });
                 } else {
                     // Fill any gaps with padding fields
                     while (current_bit < bit_pos) {
@@ -620,14 +559,14 @@ fn writeGlobalEnum(enum_def: *const Json.GlobalEnum, w: anytype) !void {
                 try w.print(
                     \\    pub const {s}: {s} = @bitCast({d});
                     \\
-                , .{ enumFieldName(enum_def.name, value.name), typeName(enum_def.name), value.value });
+                , .{ enumFieldName(enum_def.name, value.name), Name.type_(enum_def.name), value.value });
             }
         }
     } else {
         try w.print(
             \\pub const {s} = enum(i64) {{
             \\
-        , .{typeName(enum_def.name)});
+        , .{Name.type_(enum_def.name)});
 
         for (enum_def.values) |value| {
             try w.print(
@@ -655,71 +594,8 @@ fn writeBanner(comptime indent: u4, text: anytype, w: anytype) !void {
     , .{ indentStr, text });
 }
 
-/// Convenience wrapper for zero-allocation writing of cased string names.
-const Name = union(enum) {
-    pascal: []const u8,
-    camel: []const u8,
-    snake: []const u8,
-    virtual_camel: []const u8,
-    none: []const u8,
-
-    pub fn format(
-        self: @This(),
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
-        var buf: [128]u8 = undefined;
-        const name = switch (self) {
-            .pascal => |s| try case.bufTo(&buf, .pascal, s),
-            .camel => |s| try case.bufTo(&buf, .camel, s),
-            .snake => |s| try case.bufTo(&buf, .snake, s),
-            .virtual_camel => |s| blk: {
-                const camel_name = try case.bufTo(&buf, .camel, s);
-                // Move the result to make room for underscore
-                std.mem.copyBackwards(u8, buf[1 .. camel_name.len + 1], buf[0..camel_name.len]);
-                buf[0] = '_';
-                break :blk buf[0 .. camel_name.len + 1];
-            },
-            .none => {
-                try writer.print("{s}", .{self.none});
-                return;
-            },
-        };
-
-        if (std.zig.Token.keywords.has(name)) {
-            try writer.print("@\"{s}\"", .{name});
-        } else {
-            try writer.print("{s}", .{name});
-        }
-    }
-};
-
-fn typeName(name: []const u8) Name {
-    if (type_name_exceptions.get(name)) |override| {
-        return .{ .none = override };
-    }
-
-    return .{ .pascal = name };
-}
-
-fn funcName(name: []const u8) Name {
-    return .{ .camel = name };
-}
-
-fn virtualFuncName(name: []const u8) Name {
-    return .{ .virtual_camel = name[1..] };
-}
-
-fn valName(name: []const u8) Name {
-    return .{ .snake = name };
-}
-
 fn enumFieldName(@"enum": []const u8, field: []const u8) Name {
-    if (enum_prefix_exceptions.get(@"enum")) |prefix| {
+    if (data.enum_prefix_exceptions.get(@"enum")) |prefix| {
         if (std.mem.startsWith(u8, field, prefix)) {
             return .{ .snake = field[prefix.len..] };
         }
@@ -758,4 +634,10 @@ fn enumFieldName(@"enum": []const u8, field: []const u8) Name {
 
 const std = @import("std");
 const case = @import("case");
+const mustache = @import("mustache");
+
 const Json = @import("Json.zig");
+const data = @import("./data.zig");
+const template = @import("./template.zig");
+
+const Name = data.Name;
