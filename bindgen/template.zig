@@ -71,3 +71,23 @@ pub const builtin =
     \\ const std = @import("std");
     \\ const gd = @import("godot");
 ;
+
+pub const class =
+    \\// TODO
+;
+
+pub const constant =
+    \\// TODO
+;
+
+pub const @"enum" =
+    \\// TODO
+;
+
+pub const flag =
+    \\// TODO
+;
+
+pub const function =
+    \\// TODO
+;

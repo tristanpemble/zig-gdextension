@@ -1,9 +1,17 @@
 //! This module implements the logic for generating Zig code using:
 //!
-//! - The JSON definitions defined in `./Json.zig`
+//! - The JSON definitions defined in `./Schema.zig`
 //!
 
-pub fn write(json: Json, writer: anytype) !void {
+pub fn write(json: Schema, writer: anytype) !void {
+    var gpa: DebugAllocator(.{}) = .init;
+    var arena = ArenaAllocator.init(gpa.allocator());
+    defer arena.deinit();
+
+    _ = arena.allocator();
+
+    // todo; pass along to renderers as needed.
+
     try writeGlobalConstants(json, writer);
     try writeBuiltins(json, writer);
     try writeClasses(json, writer);
@@ -11,77 +19,70 @@ pub fn write(json: Json, writer: anytype) !void {
     try writeUtilityFunctions(json, writer);
 }
 
-fn writeBuiltins(json: Json, writer: anytype) !void {
+fn writeBuiltins(json: Schema, writer: anytype) !void {
     try writeBanner(0, "Builtins", writer);
 
     for (json.builtin_classes, 0..) |builtin, i| {
         if (i > 0) try writer.writeAll("\n");
-        if (data.skipped_types.has(builtin.name)) continue;
+        if (Data.skipped_types.has(builtin.name)) continue;
         try writeBuiltin(&builtin, writer);
     }
 }
 
-fn writeBuiltin(builtin: *const Json.Builtin, w: anytype) !void {
-    const tmpl = try mustache.parseText(std.heap.page_allocator, template.builtin, .{}, .{ .copy_strings = false });
-    try mustache.render(tmpl.success, .{
-        .builtin = data.Builtin{
-            .doc = "Hello, world!",
-            .name = Name.type_(builtin.name),
-        },
-    }, w);
-    // try w.print(
-    //     \\pub const {s} = struct {{
-    //     \\
-    // , .{Name.type_(builtin.name)});
+fn writeBuiltin(builtin: *const Schema.Builtin, w: anytype) !void {
+    try w.print(
+        \\pub const {s} = struct {{
+        \\
+    , .{Name.type_(builtin.name)});
 
-    // if (builtin.constants) |constants| {
-    //     if (constants.len > 0) {
-    //         try writeBanner(1, "Constants", w);
-    //         for (constants) |constant| {
-    //             try writeBuiltinConstant(&constant, w);
-    //         }
-    //         try w.writeAll("\n");
-    //     }
-    // }
+    if (builtin.constants) |constants| {
+        if (constants.len > 0) {
+            try writeBanner(1, "Constants", w);
+            for (constants) |constant| {
+                try writeBuiltinConstant(&constant, w);
+            }
+            try w.writeAll("\n");
+        }
+    }
 
-    // if (builtin.enums) |enums| {
-    //     if (enums.len > 0) {
-    //         try writeBanner(1, "Enums", w);
-    //         for (enums, 0..) |enum_def, i| {
-    //             if (i > 0) try w.writeAll("\n");
-    //             try writeBuiltinEnum(&enum_def, w);
-    //         }
-    //         try w.writeAll("\n");
-    //     }
-    // }
+    if (builtin.enums) |enums| {
+        if (enums.len > 0) {
+            try writeBanner(1, "Enums", w);
+            for (enums, 0..) |enum_def, i| {
+                if (i > 0) try w.writeAll("\n");
+                try writeBuiltinEnum(&enum_def, w);
+            }
+            try w.writeAll("\n");
+        }
+    }
 
-    // if (builtin.methods) |methods| {
-    //     if (methods.len > 0) {
-    //         try writeBanner(1, "Methods", w);
-    //         for (methods, 0..) |method, i| {
-    //             if (i > 0) try w.writeAll("\n");
-    //             try writeBuiltinMethod(builtin, &method, w);
-    //         }
-    //         try w.writeAll("\n");
-    //     }
-    // }
+    if (builtin.methods) |methods| {
+        if (methods.len > 0) {
+            try writeBanner(1, "Methods", w);
+            for (methods, 0..) |method, i| {
+                if (i > 0) try w.writeAll("\n");
+                try writeBuiltinMethod(builtin, &method, w);
+            }
+            try w.writeAll("\n");
+        }
+    }
 
-    // if (builtin.constructors.len > 0) {
-    //     try writeBanner(1, "Constructors", w);
-    //     for (builtin.constructors, 0..) |constructor, i| {
-    //         if (i > 0) try w.writeAll("\n");
-    //         try writeBuiltinConstructor(builtin, &constructor, w);
-    //     }
-    //     try w.writeAll("\n");
-    // }
+    if (builtin.constructors.len > 0) {
+        try writeBanner(1, "Constructors", w);
+        for (builtin.constructors, 0..) |constructor, i| {
+            if (i > 0) try w.writeAll("\n");
+            try writeBuiltinConstructor(builtin, &constructor, w);
+        }
+        try w.writeAll("\n");
+    }
 
-    // try w.print(
-    //     \\}};
-    //     \\
-    // , .{});
+    try w.print(
+        \\}};
+        \\
+    , .{});
 }
 
-fn writeBuiltinMethod(builtin: *const Json.Builtin, method: *const Json.Builtin.Method, w: anytype) !void {
+fn writeBuiltinMethod(builtin: *const Schema.Builtin, method: *const Schema.Builtin.Method, w: anytype) !void {
     const return_type = if (std.mem.eql(u8, method.return_type, "void")) "void" else method.return_type;
 
     if (method.is_static) {
@@ -114,14 +115,14 @@ fn writeBuiltinMethod(builtin: *const Json.Builtin, method: *const Json.Builtin.
     , .{Name.type_(return_type)});
 }
 
-fn writeBuiltinMethodArguments(args: []const Json.Builtin.Method.Argument, w: anytype) !void {
+fn writeBuiltinMethodArguments(args: []const Schema.Builtin.Method.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
         try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
-fn writeBuiltinConstructor(builtin: *const Json.Builtin, constructor: *const Json.Builtin.Constructor, w: anytype) !void {
+fn writeBuiltinConstructor(builtin: *const Schema.Builtin, constructor: *const Schema.Builtin.Constructor, w: anytype) !void {
     try w.print(
         \\    pub fn init{d}(
     , .{constructor.index});
@@ -138,21 +139,21 @@ fn writeBuiltinConstructor(builtin: *const Json.Builtin, constructor: *const Jso
     , .{Name.type_(builtin.name)});
 }
 
-fn writeBuiltinConstructorArguments(args: []const Json.Builtin.Constructor.Argument, w: anytype) !void {
+fn writeBuiltinConstructorArguments(args: []const Schema.Builtin.Constructor.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
         try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
-fn writeBuiltinConstant(constant: *const Json.Builtin.Constant, w: anytype) !void {
+fn writeBuiltinConstant(constant: *const Schema.Builtin.Constant, w: anytype) !void {
     try w.print(
         \\    pub const {s}: {s} = {s};
         \\
     , .{ Name.val(constant.name), Name.type_(constant.type), constant.value });
 }
 
-fn writeBuiltinEnum(enum_def: *const Json.Builtin.Enum, w: anytype) !void {
+fn writeBuiltinEnum(enum_def: *const Schema.Builtin.Enum, w: anytype) !void {
     try w.print(
         \\    pub const {s} = enum(i64) {{
         \\
@@ -171,7 +172,7 @@ fn writeBuiltinEnum(enum_def: *const Json.Builtin.Enum, w: anytype) !void {
     , .{});
 }
 
-fn writeClasses(json: Json, writer: anytype) !void {
+fn writeClasses(json: Schema, writer: anytype) !void {
     try writeBanner(0, "Classes", writer);
 
     for (json.classes, 0..) |class, i| {
@@ -180,7 +181,7 @@ fn writeClasses(json: Json, writer: anytype) !void {
     }
 }
 
-fn writeClass(class: *const Json.Class, is_singleton: bool, w: anytype) !void {
+fn writeClass(class: *const Schema.Class, is_singleton: bool, w: anytype) !void {
     try w.print(
         \\pub const {s} = struct {{
         \\
@@ -285,14 +286,14 @@ fn writeClass(class: *const Json.Class, is_singleton: bool, w: anytype) !void {
     , .{});
 }
 
-fn writeClassConstant(constant: *const Json.Class.Constant, w: anytype) !void {
+fn writeClassConstant(constant: *const Schema.Class.Constant, w: anytype) !void {
     try w.print(
         \\    pub const {s}: i64 = {d};
         \\
     , .{ Name.val(constant.name), constant.value });
 }
 
-fn writeClassEnum(enum_def: *const Json.Class.Enum, w: anytype) !void {
+fn writeClassEnum(enum_def: *const Schema.Class.Enum, w: anytype) !void {
     if (enum_def.is_bitfield) {
         try w.print(
             \\    pub const {s} = packed struct(i64) {{
@@ -374,7 +375,7 @@ fn writeClassEnum(enum_def: *const Json.Class.Enum, w: anytype) !void {
     , .{});
 }
 
-fn writeClassMethod(class: *const Json.Class, method: *const Json.Class.Method, w: anytype) !void {
+fn writeClassMethod(class: *const Schema.Class, method: *const Schema.Class.Method, w: anytype) !void {
     const return_type = if (method.return_value) |ret_val| ret_val.type else "void";
 
     if (method.is_static) {
@@ -403,14 +404,14 @@ fn writeClassMethod(class: *const Json.Class, method: *const Json.Class.Method, 
     , .{Name.type_(return_type)});
 }
 
-fn writeClassMethodArguments(args: []const Json.Class.Method.Argument, w: anytype) !void {
+fn writeClassMethodArguments(args: []const Schema.Class.Method.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
         try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
-fn writeClassProperty(class: *const Json.Class, property: *const Json.Class.Property, w: anytype) !void {
+fn writeClassProperty(class: *const Schema.Class, property: *const Schema.Class.Property, w: anytype) !void {
     // Getter
     try w.print(
         \\    pub fn {s}(self: *const {s}) {s} {{
@@ -430,7 +431,7 @@ fn writeClassProperty(class: *const Json.Class, property: *const Json.Class.Prop
     }
 }
 
-fn writeUtilityFunctions(json: Json, writer: anytype) !void {
+fn writeUtilityFunctions(json: Schema, writer: anytype) !void {
     try writeBanner(0, "Functions", writer);
 
     // This takes advantage of the fact that utility functions are sorted by category in the JSON
@@ -450,7 +451,7 @@ fn writeUtilityFunctions(json: Json, writer: anytype) !void {
     try writer.print("}};\n", .{});
 }
 
-fn writeUtilityFunction(func: *const Json.UtilityFunction, w: anytype) !void {
+fn writeUtilityFunction(func: *const Schema.UtilityFunction, w: anytype) !void {
     const return_type = func.return_type orelse "void";
 
     try w.print(
@@ -469,14 +470,14 @@ fn writeUtilityFunction(func: *const Json.UtilityFunction, w: anytype) !void {
     , .{Name.type_(return_type)});
 }
 
-fn writeUtilityFunctionArguments(args: []const Json.UtilityFunction.Argument, w: anytype) !void {
+fn writeUtilityFunctionArguments(args: []const Schema.UtilityFunction.Argument, w: anytype) !void {
     for (args, 0..) |arg, i| {
         if (i > 0) try w.writeAll(", ");
         try w.print("{s}: {s}", .{ Name.val(arg.name), Name.type_(arg.type) });
     }
 }
 
-fn writeGlobalConstants(json: Json, writer: anytype) !void {
+fn writeGlobalConstants(json: Schema, writer: anytype) !void {
     try writeBanner(0, "Constants", writer);
 
     for (json.global_constants) |constant| {
@@ -484,14 +485,14 @@ fn writeGlobalConstants(json: Json, writer: anytype) !void {
     }
 }
 
-fn writeGlobalConstant(constant: *const Json.GlobalConstant, w: anytype) !void {
+fn writeGlobalConstant(constant: *const Schema.GlobalConstant, w: anytype) !void {
     try w.print(
         \\pub const {s} = {s};
         \\
     , .{ Name.val(constant.name), constant.value });
 }
 
-fn writeGlobalEnums(json: Json, writer: anytype) !void {
+fn writeGlobalEnums(json: Schema, writer: anytype) !void {
     try writeBanner(0, "Enums", writer);
 
     for (json.global_enums, 0..) |enum_def, i| {
@@ -500,7 +501,7 @@ fn writeGlobalEnums(json: Json, writer: anytype) !void {
     }
 }
 
-fn writeGlobalEnum(enum_def: *const Json.GlobalEnum, w: anytype) !void {
+fn writeGlobalEnum(enum_def: *const Schema.GlobalEnum, w: anytype) !void {
     if (enum_def.is_bitfield) {
         try w.print(
             \\pub const {s} = packed struct(i64) {{
@@ -595,7 +596,7 @@ fn writeBanner(comptime indent: u4, text: anytype, w: anytype) !void {
 }
 
 fn enumFieldName(@"enum": []const u8, field: []const u8) Name {
-    if (data.enum_prefix_exceptions.get(@"enum")) |prefix| {
+    if (Data.enum_prefix_exceptions.get(@"enum")) |prefix| {
         if (std.mem.startsWith(u8, field, prefix)) {
             return .{ .snake = field[prefix.len..] };
         }
@@ -636,8 +637,12 @@ const std = @import("std");
 const case = @import("case");
 const mustache = @import("mustache");
 
-const Json = @import("Json.zig");
-const data = @import("./data.zig");
+const Schema = @import("Schema.zig");
+const Data = @import("./Data.zig");
 const template = @import("./template.zig");
 
-const Name = data.Name;
+const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
+const DebugAllocator = std.heap.DebugAllocator;
+
+const Name = Data.Name;

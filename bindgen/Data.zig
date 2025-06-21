@@ -1,6 +1,13 @@
+builtins: []Builtin = &.{},
+classes: []Class = &.{},
+constants: []GlobalConstant = &.{},
+enums: []GlobalEnum = &.{},
+flags: []GlobalFlag = &.{},
+functions: []Function = &.{},
+
 pub const Builtin = struct {
     doc: []const u8 = "",
-    name: Name = .{ .none = "" },
+    name: []const u8,
     members: []Member = &.{},
     constants: []Constant = &.{},
     constructors: []Constructor = &.{},
@@ -62,9 +69,10 @@ pub const Builtin = struct {
 };
 
 pub const Class = struct {};
-pub const Flag = struct {};
+pub const GlobalConstant = struct {};
+pub const GlobalEnum = struct {};
+pub const GlobalFlag = struct {};
 pub const Function = struct {};
-pub const Property = struct {};
 
 /// Convenience wrapper for zero-allocation writing of cased string names.
 pub const Name = union(enum) {

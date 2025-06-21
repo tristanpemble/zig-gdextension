@@ -1,5 +1,4 @@
 pub fn main() !void {
-    // Setup allocators
     var gpa: DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
 
@@ -8,20 +7,26 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    // Parse extension_api.json
     const cwd = fs.cwd();
     const path = try cwd.realpathAlloc(allocator, "extension_api.json");
     const contents = try cwd.readFileAlloc(allocator, path, 10 * 1024 * 1024);
-    const json = try Json.parse(allocator, contents);
 
-    // Generate the code
-    try write(json.value, std.io.getStdOut().writer());
+    const json = try Schema.parseLeaky(allocator, contents);
+    const data = try transform(allocator, json);
+
+    const writer = std.io.getStdOut().writer();
+
+    // TODO: remove
+    try @import("writer.zig").write(json, writer);
+
+    try render(allocator, data, writer);
 }
 
 const std = @import("std");
 
-const Json = @import("Json.zig");
-const write = @import("print.zig").write;
+const Schema = @import("Schema.zig");
+const transform = @import("transform.zig").transform;
+const render = @import("render.zig").render;
 
 const ArenaAllocator = std.heap.ArenaAllocator;
 const DebugAllocator = std.heap.DebugAllocator;
