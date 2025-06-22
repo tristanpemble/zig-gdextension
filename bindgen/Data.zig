@@ -9,8 +9,8 @@ has_enums: bool,
 enums: []Enum = &.{},
 has_flags: bool,
 flags: []Flag = &.{},
-has_functions: bool,
-functions: []Module = &.{},
+has_modules: bool,
+modules: []Module = &.{},
 
 pub const Interface = struct {
     name: []const u8 = "",
@@ -125,7 +125,7 @@ pub const GlobalConstant = struct {
 
 pub const Module = struct {
     doc: []const u8 = "",
-    category: []const u8 = "",
+    name: []const u8 = "",
     has_functions: bool,
     functions: []Method = &.{},
 };

@@ -5,16 +5,20 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    const cwd = fs.cwd();
-    const path = try cwd.realpathAlloc(allocator, "extension_api.json");
-    const contents = try cwd.readFileAlloc(allocator, path, 10 * 1024 * 1024);
+    var args = std.process.args();
+    _ = args.skip();
 
-    const json = try Schema.parseLeaky(allocator, contents);
-    const data = try transform(allocator, json);
+    const dir = try fs.cwd().openDir(args.next() orelse ".", .{});
+    const interface = try dir.readFileAlloc(allocator, "gdextension_interface.h", 10 * 1024 * 1024);
+    const extension_api = try dir.readFileAlloc(allocator, "extension_api.json", 10 * 1024 * 1024);
+    const out = try dir.makeOpenPath("out", .{
+        .access_sub_paths = true,
+    });
 
-    const writer = std.io.getStdOut().writer();
+    const json = try Schema.parseLeaky(allocator, extension_api);
+    const data = try transform(allocator, json, interface);
 
-    try render(allocator, data, writer);
+    try render(allocator, out, data);
 }
 
 const std = @import("std");

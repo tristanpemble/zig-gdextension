@@ -31,8 +31,6 @@ pub fn build(b: *Build) void {
     bindgen.mod.addImport("mustache", mustache.mod);
     lib.mod.addImport("godot", godot.mod);
 
-    bindgen.cmd.setCwd(godot.dep.path("gdextension"));
-
     // Steps
     b.step("bindgen", "Generate bindings").dependOn(&bindgen.cmd.step);
     b.step("test", "Run tests").dependOn(&tests.cmd.step);

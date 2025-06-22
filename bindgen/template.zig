@@ -3,42 +3,44 @@ pub const root =
     \\
     \\pub var interface: @import("Interface.zig") = undefined;
     \\
+    \\{{#constants}}
+    \\pub const {{{name}}} = {{{value}}};
+    \\{{/constants}}
+    \\
+    \\pub const builtin = struct {
+    \\    {{#builtins}}
+    \\    pub const {{{name}}} = @import("builtin/{{name}}.zig").{{name}};
+    \\    {{/builtins}}
+    \\    {{#enums}}
+    \\    pub const {{{name}}} = @import("builtin/{{name}}.zig").{{name}};
+    \\    {{/enums}}
+    \\    {{#flags}}
+    \\    pub const {{{name}}} = @import("builtin/{{name}}.zig").{{name}};
+    \\    {{/flags}}
+    \\};
+    \\
+    \\pub const engine = struct {
+    \\    {{#classes}}
+    \\    pub const {{{name}}} = @import("engine/{{name}}.zig").{{name}};
+    \\    {{/classes}}
+    \\};
+    \\
+    \\{{#modules}}
+    \\pub const {{name}} = @import("{{name}}.zig");
+    \\{{/modules}}
+    \\
     \\{{#builtins}}
     \\pub const {{{name}}} = builtin.{{{name}}};
     \\{{/builtins}}
     \\{{#classes}}
-    \\pub const {{{name}}} = builtin.{{{name}}};
+    \\pub const {{{name}}} = engine.{{{name}}};
     \\{{/classes}}
-    \\{{#constants}}
-    \\pub const {{{name}}} = {{{value}}};
-    \\{{/constants}}
     \\{{#enums}}
     \\pub const {{{name}}} = builtin.{{{name}}};
     \\{{/enums}}
     \\{{#flags}}
     \\pub const {{{name}}} = builtin.{{{name}}};
     \\{{/flags}}
-    \\{{#functions}}
-    \\pub const {{{category}}} = @import("{{{category}}}.zig");
-    \\{{/functions}}
-    \\
-    \\pub const builtin = struct {
-    \\    {{#builtins}}
-    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
-    \\    {{/builtins}}
-    \\    {{#enums}}
-    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
-    \\    {{/enums}}
-    \\    {{#flags}}
-    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
-    \\    {{/flags}}
-    \\};
-    \\
-    \\pub const engine = struct {
-    \\    {{#classes}}
-    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
-    \\    {{/classes}}
-    \\};
     \\
 ;
 
@@ -93,7 +95,7 @@ pub const builtin =
     \\          @ptrCast(&{{{name}}}),
     \\          {{/args}}
     \\        };
-    \\        constructor(@ptrCast(&out), @ptrCast(&args))
+    \\        constructor(@ptrCast(&out), @ptrCast(&args));
     \\        return out orelse error.UnexpectedNull;
     \\    }
     \\
@@ -122,7 +124,9 @@ pub const builtin =
     \\
     \\    {{/methods}}
     \\    {{#enums}}
-    \\    {{>enum}}{{/enums}}
+    \\    {{>enum}}
+    \\
+    \\    {{/enums}}
     \\};
     \\
     \\const std = @import("std");
@@ -132,9 +136,9 @@ pub const builtin =
 
 pub const class =
     \\/// {{doc}}
-    \\pub const {{name}} = struct {
+    \\pub const {{name}} = extern struct {
     \\    {{#inherits}}
-    \\    pub const Base = {{inherits}};
+    \\    base: {{inherits}},
     \\
     \\    {{/inherits}}
     \\    {{#constants}}
@@ -143,7 +147,7 @@ pub const class =
     \\
     \\    {{/constants}}
     \\    {{#is_instantiable}}
-    \\    pub fn init() {{{type}}} {
+    \\    pub fn init() @This() {
     \\
     \\    }
     \\
@@ -225,16 +229,16 @@ pub const flag =
     \\
 ;
 
-pub const function =
-    \\/// {{function.doc}}
-    \\pub const {{function.category}} = struct {
-    \\    {{#function.functions}}
-    \\    /// {{{doc}}}
-    \\    {{>signature}}
-    \\        @panic("todo");
-    \\    }
-    \\    {{/function.functions}}
-    \\};
+pub const module =
+    \\///! {{doc}}
+    \\
+    \\{{#functions}}
+    \\/// {{{doc}}}
+    \\{{>signature}}
+    \\    @panic("todo");
+    \\}
+    \\
+    \\{{/functions}}
     \\
 ;
 

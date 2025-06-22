@@ -3,19 +3,19 @@ const Transformer = @This();
 allocator: Allocator,
 json: Schema,
 
-pub fn transform(allocator: Allocator, json: Schema) !Data {
+pub fn transform(allocator: Allocator, json: Schema, interface: []const u8) !Data {
     var self = Transformer{
         .allocator = allocator,
         .json = json,
     };
 
-    const interfaces = try self.transformInterfaces();
+    const interfaces = try self.transformInterfaces(interface);
     const builtins = try self.transformBuiltins();
     const classes = try self.transformClasses();
     const constants = try self.transformGlobalConstants();
     const enums = try self.transformGlobalEnums();
     const flags = try self.transformGlobalFlags();
-    const functions = try self.transformUtilityFunctions();
+    const modules = try self.transformUtilityFunctions();
 
     return .{
         .interfaces = interfaces,
@@ -24,20 +24,19 @@ pub fn transform(allocator: Allocator, json: Schema) !Data {
         .constants = constants,
         .enums = enums,
         .flags = flags,
-        .functions = functions,
+        .modules = modules,
 
         .has_builtins = builtins.len > 0,
         .has_classes = classes.len > 0,
         .has_constants = constants.len > 0,
         .has_enums = enums.len > 0,
         .has_flags = flags.len > 0,
-        .has_functions = functions.len > 0,
+        .has_modules = modules.len > 0,
     };
 }
 
-fn parseFunctionPointers(self: *Transformer, header_path: []const u8) !std.StringHashMapUnmanaged([]const u8) {
-    const header_file = try std.fs.openFileAbsolute(header_path, .{});
-    var buffered_reader = std.io.bufferedReader(header_file.reader());
+fn parseFunctionPointers(self: *Transformer, interface: []const u8) !std.StringHashMapUnmanaged([]const u8) {
+    var buffered_reader = std.io.fixedBufferStream(interface);
     const reader = buffered_reader.reader();
 
     var fp_map = std.StringHashMapUnmanaged([]const u8){};
@@ -85,9 +84,8 @@ fn parseFunctionPointers(self: *Transformer, header_path: []const u8) !std.Strin
     return fp_map;
 }
 
-fn transformInterfaces(self: *Transformer) ![]Data.Interface {
-    const path = try std.fs.cwd().realpathAlloc(self.allocator, "gdextension_interface.h");
-    var fp_map = try self.parseFunctionPointers(path);
+fn transformInterfaces(self: *Transformer, interface: []const u8) ![]Data.Interface {
+    var fp_map = try self.parseFunctionPointers(interface);
     var result = std.ArrayListUnmanaged(Data.Interface){};
 
     for (comptime @typeInfo(gd).@"struct".decls) |decl| {
@@ -578,7 +576,7 @@ fn transformUtilityFunctions(self: *Transformer) ![]Data.Module {
     var i: usize = 0;
     while (iter.next()) |entry| {
         result[i] = Data.Module{
-            .category = try self.formatName(Data.Name.val(entry.key_ptr.*)),
+            .name = try self.formatName(Data.Name.val(entry.key_ptr.*)),
             .has_functions = entry.value_ptr.items.len > 0,
             .functions = try entry.value_ptr.toOwnedSlice(),
         };
