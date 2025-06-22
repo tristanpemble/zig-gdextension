@@ -63,21 +63,21 @@ pub const interface =
 ;
 
 pub const builtin =
-    \\/// {{builtin.doc}}
-    \\pub const {{builtin.name}} = extern struct {
-    \\    {{#builtin.members}}
+    \\/// {{doc}}
+    \\pub const {{name}} = extern struct {
+    \\    {{#members}}
     \\    /// {{{doc}}}
     \\    {{{name}}}: {{{type}}},
     \\
-    \\    {{/builtin.members}}
-    \\    {{#builtin.constants}}
+    \\    {{/members}}
+    \\    {{#constants}}
     \\    /// {{{doc}}}
     \\    pub const {{{name}}}: {{{type}}} = {{{value}}};
     \\
-    \\    {{/builtin.constants}}
-    \\    {{#builtin.constructors}}
+    \\    {{/constants}}
+    \\    {{#constructors}}
     \\    /// {{{doc}}}
-    \\    pub fn {{{name}}}({{#args}}{{{name}}}: {{{type}}}, {{/args}}) {{{return_type}}} {
+    \\    {{>signature}}
     \\        var constructor = struct {
     \\            var method: gd.c.{{{type}}} = null;
     \\            pub fn get() std.meta.Child(gd.c.{{{type}}}) {
@@ -87,7 +87,7 @@ pub const builtin =
     \\                return method.?;
     \\            }
     \\        }.get();
-    \\        var out: {{builtin.name}} = std.mem.zeroes({{builtin.name}});
+    \\        var out = std.mem.zeroes(@This());
     \\        var args = [_]gd.c.GDExtensionConstTypePtr {
     \\          {{#args}}
     \\          @ptrCast(&{{{name}}}),
@@ -97,10 +97,10 @@ pub const builtin =
     \\        return out orelse error.UnexpectedNull;
     \\    }
     \\
-    \\    {{/builtin.constructors}}
-    \\    {{#builtin.methods}}
+    \\    {{/constructors}}
+    \\    {{#methods}}
     \\    /// {{{doc}}}
-    \\    pub fn {{{name}}}(self: *{{builtin.name}}{{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
+    \\    {{>signature}}
     \\        var method = struct {
     \\            var method: gd.c.{{{type}}} = null;
     \\            pub fn get() std.meta.Child(gd.c.{{{type}}}) {
@@ -120,16 +120,9 @@ pub const builtin =
     \\        return ret;
     \\    }
     \\
-    \\    {{/builtin.methods}}
-    \\    {{#builtin.enums}}
-    \\    /// {{{doc}}}
-    \\    pub const {{{name}}} = enum(i32) {
-    \\        {{#values}}
-    \\        /// {{{doc}}}
-    \\        {{{name}}} = {{{value}}},
-    \\        {{/values}}
-    \\    };
-    \\    {{/builtin.enums}}
+    \\    {{/methods}}
+    \\    {{#enums}}
+    \\    {{>enum}}{{/enums}}
     \\};
     \\
     \\const std = @import("std");
@@ -138,105 +131,96 @@ pub const builtin =
 ;
 
 pub const class =
-    \\/// {{class.doc}}
-    \\pub const {{class.name}} = struct {
-    \\    {{#class.inherits}}
-    \\    pub const Base = {{class.inherits}};
+    \\/// {{doc}}
+    \\pub const {{name}} = struct {
+    \\    {{#inherits}}
+    \\    pub const Base = {{inherits}};
     \\
-    \\    {{/class.inherits}}
-    \\    {{#class.constants}}
+    \\    {{/inherits}}
+    \\    {{#constants}}
     \\    /// {{{doc}}}
     \\    pub const {{{name}}}: i64 = {{{value}}};
     \\
-    \\    {{/class.constants}}
-    \\    {{#class.is_instantiable}}
+    \\    {{/constants}}
+    \\    {{#is_instantiable}}
     \\    pub fn init() {{{type}}} {
     \\
     \\    }
     \\
-    \\    {{/class.is_instantiable}}
-    // \\    {{#class.properties}}
-    // \\    pub fn {{{getter}}}(self: *const {{class.name}}) {{{type}}} {
+    \\    {{/is_instantiable}}
+    // \\    {{#properties}}
+    // \\    pub fn {{{getter}}}(self: *const @This()) {{{type}}} {
     // \\    }
     // \\
     // \\    {{#has_setter}}
-    // \\    pub fn {{{setter}}}(self: *{{class.name}}, value: {{{type}}}) void {
+    // \\    pub fn {{{setter}}}(self: *@This(), value: {{{type}}}) void {
     // \\    }
     // \\
     // \\    {{/has_setter}}
-    // \\    {{/class.properties}}
-    \\    {{#class.static_methods}}
-    \\    pub fn {{{name}}}({{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
+    // \\    {{/properties}}
+    \\    {{#static_methods}}
+    \\    /// {{doc}}
+    \\    {{>signature}}
     \\    }
     \\
-    \\    {{/class.static_methods}}
-    \\    {{#class.methods}}
-    \\    pub fn {{{name}}}(self: *{{#is_const}}const {{/is_const}}{{class.name}}{{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
+    \\    {{/static_methods}}
+    \\    {{#methods}}
+    \\    /// {{doc}}
+    \\    {{>signature}}
     \\    }
     \\
-    \\    {{/class.methods}}
-    \\    {{#class.virtual_methods}}
-    \\    pub fn {{{name}}}(self: *{{class.name}}{{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
+    \\    {{/methods}}
+    \\    {{#virtual_methods}}
+    \\    /// {{doc}}
+    \\    {{>signature}}
     \\    }
     \\
-    \\    {{/class.virtual_methods}}
-    \\    {{#class.enums}}
-    \\    /// {{{doc}}}
-    \\    pub const {{{name}}} = enum(i32) {
-    \\        {{#values}}
-    \\        {{{name}}} = {{{value}}},
-    \\        {{/values}}
-    \\    };
+    \\    {{/virtual_methods}}
+    \\    {{#enums}}
+    \\    ///
+    \\    {{>enum}}
     \\
-    \\    {{/class.enums}}
-    \\    {{#class.flags}}
-    \\    /// {{{doc}}}
-    \\    pub const {{{name}}} = packed struct(i32) {
-    \\        {{#values}}
-    \\        {{{name}}}: u1 = {{value}},
-    \\        {{/values}}
+    \\    {{/enums}}
+    \\    {{#flags}}
+    \\    ///
+    \\    {{>flag}}
     \\
-    \\        {{#consts}}
-    \\        pub const {{{name}}}: @This() = @bitCast({{{value}}});
-    \\        {{/consts}}
-    \\    };
+    \\    {{/flags}}
+    \\    {{#is_singleton}}
+    \\    var instance: ?@This() = undefined;
     \\
-    \\    {{/class.flags}}
-    \\    {{#class.is_singleton}}
-    \\    var instance: ?{{class.name}} = undefined;
-    \\
-    \\    fn getSingleton() {{class.name}} {
+    \\    fn getSingleton() @This() {
     \\        if (instance == null) {
     \\            @panic("TODO: implement getSingleton");
     \\        }
     \\        return instance.?;
     \\    }
-    \\    {{/class.is_singleton}}
+    \\    {{/is_singleton}}
     \\};
     \\
 ;
 
-pub const @"enum" =
+pub const enum_ =
     \\/// {{{doc}}}
-    \\pub const {{enum.name}} = enum(i32) {
-    \\    {{#enum.values}}
+    \\pub const {{name}} = enum(i32) {
+    \\    {{#values}}
     \\    {{{name}}} = {{{value}}},
-    \\    {{/enum.values}}
+    \\    {{/values}}
     \\};
     \\
 ;
 
 pub const flag =
     // The extraneous newlines are because of https://github.com/batiati/mustache-zig/issues/29
-    \\/// {{flag.doc}}
-    \\pub const {{flag.name}} = packed struct(i32) {
-    \\    {{#flag.values}}
+    \\/// {{doc}}
+    \\pub const {{name}} = packed struct(i32) {
+    \\    {{#values}}
     \\    {{{name}}}: u1 = {{value}},
-    \\    {{/flag.values}}
+    \\    {{/values}}
     \\
-    \\    {{#flag.consts}}
+    \\    {{#consts}}
     \\    pub const {{{name}}}: @This() = @bitCast({{{value}}});
-    \\    {{/flag.consts}}
+    \\    {{/consts}}
     \\};
     \\
 ;
@@ -246,10 +230,15 @@ pub const function =
     \\pub const {{function.category}} = struct {
     \\    {{#function.functions}}
     \\    /// {{{doc}}}
-    \\    pub fn {{{name}}}({{#args}}{{{name}}}: {{{type}}}, {{/args}}) {{{return_type}}} {
+    \\    {{>signature}}
     \\        @panic("todo");
     \\    }
     \\    {{/function.functions}}
     \\};
+    \\
+;
+
+pub const signature =
+    \\pub fn {{{name}}}({{^is_static}}self: *{{#is_const}}const {{/is_const}}@This(){{#has_args}}, {{/has_args}}{{/is_static}}{{#args}}{{{name}}}: {{{type}}}{{^is_last}}, {{/is_last}}{{/args}}) {{{return_type}}} {
     \\
 ;

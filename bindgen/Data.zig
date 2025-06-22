@@ -10,7 +10,7 @@ enums: []Enum = &.{},
 has_flags: bool,
 flags: []Flag = &.{},
 has_functions: bool,
-functions: []Function = &.{},
+functions: []Module = &.{},
 
 pub const Interface = struct {
     name: []const u8 = "",
@@ -60,7 +60,7 @@ pub const Builtin = struct {
     has_constants: bool,
     constants: []Constant = &.{},
     has_constructors: bool,
-    constructors: []Constructor = &.{},
+    constructors: []Method = &.{},
     has_methods: bool,
     methods: []Method = &.{},
     has_enums: bool,
@@ -77,36 +77,6 @@ pub const Builtin = struct {
         name: []const u8 = "",
         type: []const u8 = "",
         value: []const u8 = "",
-    };
-
-    pub const Constructor = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        type: []const u8 = "",
-        offset: []const u8 = "",
-        has_args: bool,
-        args: []Arg = &.{},
-        return_type: []const u8 = "",
-
-        pub const Arg = struct {
-            name: []const u8 = "",
-            type: []const u8 = "",
-        };
-    };
-
-    pub const Method = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        type: []const u8 = "",
-        offset: []const u8 = "",
-        has_args: bool,
-        args: []Arg = &.{},
-        return_type: []const u8 = "",
-
-        pub const Arg = struct {
-            name: []const u8 = "",
-            type: []const u8 = "",
-        };
     };
 };
 
@@ -145,21 +115,6 @@ pub const Class = struct {
         has_setter: bool,
         setter: ?[]const u8 = null,
     };
-
-    pub const Method = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        is_const: bool = false,
-        is_virtual: bool = false,
-        return_type: []const u8 = "void",
-        has_args: bool,
-        args: []Arg = &.{},
-
-        pub const Arg = struct {
-            name: []const u8 = "",
-            type: []const u8 = "",
-        };
-    };
 };
 
 pub const GlobalConstant = struct {
@@ -168,23 +123,30 @@ pub const GlobalConstant = struct {
     value: []const u8 = "",
 };
 
-pub const Function = struct {
+pub const Module = struct {
     doc: []const u8 = "",
     category: []const u8 = "",
     has_functions: bool,
-    functions: []FunctionDef = &.{},
+    functions: []Method = &.{},
+};
 
-    pub const FunctionDef = struct {
-        doc: []const u8 = "",
+pub const Method = struct {
+    doc: []const u8 = "",
+    name: []const u8 = "",
+    type: ?[]const u8 = "",
+    offset: usize,
+    hash: usize,
+    is_static: bool = false,
+    is_const: bool = false,
+    is_virtual: bool = false,
+    has_args: bool,
+    args: []Arg = &.{},
+    return_type: []const u8 = "void",
+
+    pub const Arg = struct {
         name: []const u8 = "",
-        return_type: []const u8 = "void",
-        has_args: bool,
-        args: []Arg = &.{},
-
-        pub const Arg = struct {
-            name: []const u8 = "",
-            type: []const u8 = "",
-        };
+        type: []const u8 = "",
+        is_last: bool = false,
     };
 };
 

@@ -273,14 +273,16 @@ fn transformBuiltinConstants(self: *Transformer, constants: []Schema.Builtin.Con
     return result;
 }
 
-fn transformBuiltinConstructors(self: *Transformer, constructors: []Schema.Builtin.Constructor, builtin_name: []const u8) ![]Data.Builtin.Constructor {
-    var result = try self.allocator.alloc(Data.Builtin.Constructor, constructors.len);
+fn transformBuiltinConstructors(self: *Transformer, constructors: []Schema.Builtin.Constructor, builtin_name: []const u8) ![]Data.Method {
+    var result = try self.allocator.alloc(Data.Method, constructors.len);
     for (constructors, 0..) |constructor, i| {
         const args = @constCast(if (constructor.arguments) |args| try self.transformBuiltinConstructorArgs(args) else &.{});
-        result[i] = Data.Builtin.Constructor{
+        result[i] = Data.Method{
             .name = try std.fmt.allocPrint(self.allocator, "init{d}", .{constructor.index}),
             .type = "GDExtensionPtrConstructor",
-            .offset = try std.fmt.allocPrint(self.allocator, "{d}", .{constructor.index}),
+            .offset = @intCast(constructor.index),
+            .hash = 0,
+            .is_static = true,
             .has_args = args.len > 0,
             .args = args,
             .return_type = try std.fmt.allocPrint(self.allocator, "!{s}", .{builtin_name}),
@@ -289,25 +291,30 @@ fn transformBuiltinConstructors(self: *Transformer, constructors: []Schema.Built
     return result;
 }
 
-fn transformBuiltinConstructorArgs(self: *Transformer, args: []Schema.Builtin.Constructor.Argument) ![]Data.Builtin.Constructor.Arg {
-    var result = try self.allocator.alloc(Data.Builtin.Constructor.Arg, args.len);
+fn transformBuiltinConstructorArgs(self: *Transformer, args: []Schema.Builtin.Constructor.Argument) ![]Data.Method.Arg {
+    var result = try self.allocator.alloc(Data.Method.Arg, args.len);
     for (args, 0..) |arg, i| {
-        result[i] = Data.Builtin.Constructor.Arg{
+        result[i] = Data.Method.Arg{
             .name = try self.formatName(Data.Name.val(arg.name)),
             .type = try self.formatName(Data.Name.type_(arg.type)),
+            .is_last = i == args.len - 1,
         };
     }
     return result;
 }
 
-fn transformBuiltinMethods(self: *Transformer, methods: []Schema.Builtin.Method) ![]Data.Builtin.Method {
-    var result = try self.allocator.alloc(Data.Builtin.Method, methods.len);
+fn transformBuiltinMethods(self: *Transformer, methods: []Schema.Builtin.Method) ![]Data.Method {
+    var result = try self.allocator.alloc(Data.Method, methods.len);
     for (methods, 0..) |method, i| {
         const args = @constCast(if (method.arguments) |args| try self.transformBuiltinMethodArgs(args) else &.{});
-        result[i] = Data.Builtin.Method{
+        result[i] = Data.Method{
             .name = try self.formatName(Data.Name.func(method.name)),
             .type = "GDExtensionPtrBuiltInMethod",
-            .offset = try std.fmt.allocPrint(self.allocator, "{d}", .{method.hash}),
+            .offset = i,
+            .hash = method.hash,
+            .is_static = method.is_static,
+            .is_const = method.is_const,
+            .is_virtual = false,
             .has_args = args.len > 0,
             .args = args,
             .return_type = try self.formatName(Data.Name.type_(method.return_type)),
@@ -316,12 +323,13 @@ fn transformBuiltinMethods(self: *Transformer, methods: []Schema.Builtin.Method)
     return result;
 }
 
-fn transformBuiltinMethodArgs(self: *Transformer, args: []Schema.Builtin.Method.Argument) ![]Data.Builtin.Method.Arg {
-    var result = try self.allocator.alloc(Data.Builtin.Method.Arg, args.len);
+fn transformBuiltinMethodArgs(self: *Transformer, args: []Schema.Builtin.Method.Argument) ![]Data.Method.Arg {
+    var result = try self.allocator.alloc(Data.Method.Arg, args.len);
     for (args, 0..) |arg, i| {
-        result[i] = Data.Builtin.Method.Arg{
+        result[i] = Data.Method.Arg{
             .name = try self.formatName(Data.Name.val(arg.name)),
             .type = try self.formatName(Data.Name.type_(arg.type)),
+            .is_last = i == args.len - 1,
         };
     }
     return result;
@@ -350,9 +358,9 @@ fn transformBuiltinEnums(self: *Transformer, enums: []Schema.Builtin.Enum) ![]Da
 fn transformClasses(self: *Transformer) ![]Data.Class {
     var result = try self.allocator.alloc(Data.Class, self.json.classes.len);
     for (self.json.classes, 0..) |class, i| {
-        var static_methods = std.ArrayList(Data.Class.Method).init(self.allocator);
-        var methods = std.ArrayList(Data.Class.Method).init(self.allocator);
-        var virtual_methods = std.ArrayList(Data.Class.Method).init(self.allocator);
+        var static_methods = std.ArrayList(Data.Method).init(self.allocator);
+        var methods = std.ArrayList(Data.Method).init(self.allocator);
+        var virtual_methods = std.ArrayList(Data.Method).init(self.allocator);
 
         if (class.methods) |class_methods| {
             for (class_methods) |method| {
@@ -363,8 +371,11 @@ fn transformClasses(self: *Transformer) ![]Data.Class {
 
                 const args = @constCast(if (method.arguments) |args| try self.transformClassMethodArgs(args) else &.{});
 
-                const transformed_method = Data.Class.Method{
+                const transformed_method = Data.Method{
                     .name = try self.formatName(method_name),
+                    .offset = i,
+                    .hash = method.hash,
+                    .is_static = method.is_static,
                     .is_const = method.is_const,
                     .is_virtual = method.is_virtual,
                     .return_type = try self.formatName(if (method.return_value) |ret| Data.Name.type_(ret.type) else Data.Name.type_("void")),
@@ -519,19 +530,20 @@ fn transformClassProperties(self: *Transformer, properties: []Schema.Class.Prope
     return result;
 }
 
-fn transformClassMethodArgs(self: *Transformer, args: []Schema.Class.Method.Argument) ![]Data.Class.Method.Arg {
-    var result = try self.allocator.alloc(Data.Class.Method.Arg, args.len);
+fn transformClassMethodArgs(self: *Transformer, args: []Schema.Class.Method.Argument) ![]Data.Method.Arg {
+    var result = try self.allocator.alloc(Data.Method.Arg, args.len);
     for (args, 0..) |arg, i| {
-        result[i] = Data.Class.Method.Arg{
+        result[i] = Data.Method.Arg{
             .name = try self.formatName(Data.Name.val(arg.name)),
             .type = try self.formatName(Data.Name.type_(arg.type)),
+            .is_last = i == args.len - 1,
         };
     }
     return result;
 }
 
-fn transformUtilityFunctions(self: *Transformer) ![]Data.Function {
-    var categories = std.StringHashMap(std.ArrayList(Data.Function.FunctionDef)).init(self.allocator);
+fn transformUtilityFunctions(self: *Transformer) ![]Data.Module {
+    var categories = std.StringHashMap(std.ArrayList(Data.Method)).init(self.allocator);
     defer {
         var iter = categories.iterator();
         while (iter.next()) |entry| {
@@ -540,29 +552,32 @@ fn transformUtilityFunctions(self: *Transformer) ![]Data.Function {
         categories.deinit();
     }
 
-    for (self.json.utility_functions) |func| {
+    for (self.json.utility_functions, 0..) |func, i| {
         const entry = try categories.getOrPut(func.category);
         if (!entry.found_existing) {
-            entry.value_ptr.* = std.ArrayList(Data.Function.FunctionDef).init(self.allocator);
+            entry.value_ptr.* = std.ArrayList(Data.Method).init(self.allocator);
         }
 
         const args = try self.transformUtilityFunctionArgs(func.arguments);
 
-        const function_def = Data.Function.FunctionDef{
+        const function_def = Data.Method{
             .name = try self.formatName(Data.Name.func(func.name)),
-            .return_type = try self.formatName(if (func.return_type) |ret| Data.Name.type_(ret) else Data.Name.type_("void")),
+            .offset = i,
+            .hash = func.hash,
+            .is_static = true,
             .has_args = args.len > 0,
             .args = args,
+            .return_type = try self.formatName(if (func.return_type) |ret| Data.Name.type_(ret) else Data.Name.type_("void")),
         };
 
         try entry.value_ptr.append(function_def);
     }
 
-    var result = try self.allocator.alloc(Data.Function, categories.count());
+    var result = try self.allocator.alloc(Data.Module, categories.count());
     var iter = categories.iterator();
     var i: usize = 0;
     while (iter.next()) |entry| {
-        result[i] = Data.Function{
+        result[i] = Data.Module{
             .category = try self.formatName(Data.Name.val(entry.key_ptr.*)),
             .has_functions = entry.value_ptr.items.len > 0,
             .functions = try entry.value_ptr.toOwnedSlice(),
@@ -573,12 +588,13 @@ fn transformUtilityFunctions(self: *Transformer) ![]Data.Function {
     return result;
 }
 
-fn transformUtilityFunctionArgs(self: *Transformer, args: []Schema.UtilityFunction.Argument) ![]Data.Function.FunctionDef.Arg {
-    var result = try self.allocator.alloc(Data.Function.FunctionDef.Arg, args.len);
+fn transformUtilityFunctionArgs(self: *Transformer, args: []Schema.UtilityFunction.Argument) ![]Data.Method.Arg {
+    var result = try self.allocator.alloc(Data.Method.Arg, args.len);
     for (args, 0..) |arg, i| {
-        result[i] = Data.Function.FunctionDef.Arg{
+        result[i] = Data.Method.Arg{
             .name = try self.formatName(Data.Name.val(arg.name)),
             .type = try self.formatName(Data.Name.type_(arg.type)),
+            .is_last = i == args.len - 1,
         };
     }
     return result;

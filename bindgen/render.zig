@@ -2,29 +2,31 @@ pub fn render(allocator: Allocator, data: Data, writer: anytype) !void {
     try mustache.render(getTemplate(allocator, template.root), data, writer);
     try mustache.render(getTemplate(allocator, template.interface), data, writer);
 
+    const builtin_tmpl = getTemplate(allocator, template.builtin);
+    const class_tmpl = getTemplate(allocator, template.class);
+    const enum_tmpl = getTemplate(allocator, template.enum_);
+    const flag_tmpl = getTemplate(allocator, template.flag);
+    const function_tmpl = getTemplate(allocator, template.function);
+    const signature_tmpl = getTemplate(allocator, template.signature);
+
     for (data.builtins) |builtin| {
-        // TODO: to own file
-        try mustache.render(getTemplate(allocator, template.builtin), .{ .builtin = builtin }, writer);
+        try mustache.renderPartials(builtin_tmpl, .{ .{ "enum", enum_tmpl }, .{ "flag", flag_tmpl }, .{ "signature", signature_tmpl } }, builtin, writer);
     }
 
     for (data.classes) |class| {
-        // TODO: to own file
-        try mustache.render(getTemplate(allocator, template.class), .{ .class = class }, writer);
+        try mustache.renderPartials(class_tmpl, .{ .{ "enum", enum_tmpl }, .{ "flag", flag_tmpl }, .{ "signature", signature_tmpl } }, class, writer);
     }
 
-    for (data.enums) |@"enum"| {
-        // TODO: to own file
-        try mustache.render(getTemplate(allocator, template.@"enum"), .{ .@"enum" = @"enum" }, writer);
+    for (data.enums) |enum_| {
+        try mustache.render(enum_tmpl, enum_, writer);
     }
 
     for (data.flags) |flag| {
-        // TODO: to own file
-        try mustache.render(getTemplate(allocator, template.flag), .{ .flag = flag }, writer);
+        try mustache.render(flag_tmpl, flag, writer);
     }
 
     for (data.functions) |function| {
-        // TODO: to own file
-        try mustache.render(getTemplate(allocator, template.function), .{ .function = function }, writer);
+        try mustache.renderPartials(function_tmpl, .{.{ "signature", signature_tmpl }}, .{ .function = function }, writer);
     }
 }
 
