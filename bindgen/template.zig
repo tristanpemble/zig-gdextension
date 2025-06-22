@@ -4,39 +4,39 @@ pub const root =
     \\pub var interface: @import("Interface.zig") = undefined;
     \\
     \\{{#builtins}}
-    \\pub const {{name}} = builtin.{{name}};
+    \\pub const {{{name}}} = builtin.{{{name}}};
     \\{{/builtins}}
     \\{{#classes}}
-    \\pub const {{name}} = builtin.{{name}};
+    \\pub const {{{name}}} = builtin.{{{name}}};
     \\{{/classes}}
     \\{{#constants}}
-    \\pub const {{name}} = {{value}};
+    \\pub const {{{name}}} = {{{value}}};
     \\{{/constants}}
     \\{{#enums}}
-    \\pub const {{name}} = builtin.{{name}};
+    \\pub const {{{name}}} = builtin.{{{name}}};
     \\{{/enums}}
     \\{{#flags}}
-    \\pub const {{name}} = builtin.{{name}};
+    \\pub const {{{name}}} = builtin.{{{name}}};
     \\{{/flags}}
     \\{{#functions}}
-    \\pub const {{category}} = @import("{{category}}.zig");
+    \\pub const {{{category}}} = @import("{{{category}}}.zig");
     \\{{/functions}}
     \\
     \\pub const builtin = struct {
     \\    {{#builtins}}
-    \\    pub const {{name}} = @import("{{name}}.zig");
+    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
     \\    {{/builtins}}
     \\    {{#enums}}
-    \\    pub const {{name}} = @import("{{name}}.zig");
+    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
     \\    {{/enums}}
     \\    {{#flags}}
-    \\    pub const {{name}} = @import("{{name}}.zig");
+    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
     \\    {{/flags}}
     \\};
     \\
     \\pub const engine = struct {
     \\    {{#classes}}
-    \\    pub const {{name}} = @import("{{name}}.zig");
+    \\    pub const {{{name}}} = @import("{{{name}}}.zig");
     \\    {{/classes}}
     \\};
     \\
@@ -44,13 +44,13 @@ pub const root =
 
 pub const interface =
     \\{{#interfaces}}
-    \\{{name}}: Child(gd.c.{{type}}),
+    \\{{{name}}}: Child(gd.c.{{{type}}}),
     \\{{/interfaces}}
     \\
     \\pub fn init(getProcAddress: Child(gd.c.GDExtensionInterfaceGetProcAddress)) @This() {
     \\    return .{
     \\        {{#interfaces}}
-    \\        .{{name}} = @ptrCast(getProcAddress("{{proc_name}}")),
+    \\        .{{{name}}} = @ptrCast(getProcAddress("{{{proc_name}}}")),
     \\        {{/interfaces}}
     \\    };
     \\}
@@ -66,23 +66,23 @@ pub const builtin =
     \\/// {{builtin.doc}}
     \\pub const {{builtin.name}} = extern struct {
     \\    {{#builtin.members}}
-    \\    /// {{doc}}
-    \\    {{name}}: {{type}},
+    \\    /// {{{doc}}}
+    \\    {{{name}}}: {{{type}}},
     \\
     \\    {{/builtin.members}}
     \\    {{#builtin.constants}}
-    \\    /// {{doc}}
-    \\    pub const {{name}}: {{type}} = {{value}};
+    \\    /// {{{doc}}}
+    \\    pub const {{{name}}}: {{{type}}} = {{{value}}};
     \\
     \\    {{/builtin.constants}}
     \\    {{#builtin.constructors}}
-    \\    /// {{doc}}
-    \\    pub fn {{name}}({{#args}}{{name}}: {{type}}, {{/args}}) {{return_type}} {
+    \\    /// {{{doc}}}
+    \\    pub fn {{{name}}}({{#args}}{{{name}}}: {{{type}}}, {{/args}}) {{{return_type}}} {
     \\        var constructor = struct {
-    \\            var method: gd.c.{{type}} = null;
-    \\            pub fn get() std.meta.Child(gd.c.{{type}}) {
+    \\            var method: gd.c.{{{type}}} = null;
+    \\            pub fn get() std.meta.Child(gd.c.{{{type}}}) {
     \\                if (!method) {
-    \\                    method = gd.c.variantGetPtrConstructor("todo", {{offset}});
+    \\                    method = gd.c.variantGetPtrConstructor("todo", {{{offset}}});
     \\                }
     \\                return method.?;
     \\            }
@@ -90,7 +90,7 @@ pub const builtin =
     \\        var out: {{builtin.name}} = std.mem.zeroes({{builtin.name}});
     \\        var args = [_]gd.c.GDExtensionConstTypePtr {
     \\          {{#args}}
-    \\          @ptrCast(&{{name}}),
+    \\          @ptrCast(&{{{name}}}),
     \\          {{/args}}
     \\        };
     \\        constructor(@ptrCast(&out), @ptrCast(&args))
@@ -99,21 +99,21 @@ pub const builtin =
     \\
     \\    {{/builtin.constructors}}
     \\    {{#builtin.methods}}
-    \\    /// {{doc}}
-    \\    pub fn {{name}}(self: *{{builtin.name}}{{#args}}, {{name}}: {{type}}{{/args}}) {{return_type}} {
+    \\    /// {{{doc}}}
+    \\    pub fn {{{name}}}(self: *{{builtin.name}}{{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
     \\        var method = struct {
-    \\            var method: gd.c.{{type}} = null;
-    \\            pub fn get() std.meta.Child(gd.c.{{type}}) {
+    \\            var method: gd.c.{{{type}}} = null;
+    \\            pub fn get() std.meta.Child(gd.c.{{{type}}}) {
     \\                if (!method) {
-    \\                    method = gd.c.variantGetPtrBuiltinMethod("{{../name}}", "{{name}}", {{offset}});
+    \\                    method = gd.c.variantGetPtrBuiltinMethod("{{../name}}", "{{{name}}}", {{{offset}}});
     \\                }
     \\                return method.?;
     \\            }
     \\        }.get();
-    \\        var ret: {{return_type}} = undefined;
+    \\        var ret: {{{return_type}}} = undefined;
     \\        var args = [_]gd.c.GDExtensionConstTypePtr {
     \\          {{#args}}
-    \\          @ptrCast(&{{name}}),
+    \\          @ptrCast(&{{{name}}}),
     \\          {{/args}}
     \\        };
     \\        method(@ptrCast(self), @ptrCast(&args), @ptrCast(&ret), {{args.len}});
@@ -122,11 +122,11 @@ pub const builtin =
     \\
     \\    {{/builtin.methods}}
     \\    {{#builtin.enums}}
-    \\    /// {{doc}}
-    \\    pub const {{name}} = enum(i32) {
+    \\    /// {{{doc}}}
+    \\    pub const {{{name}}} = enum(i32) {
     \\        {{#values}}
-    \\        /// {{doc}}
-    \\        {{name}} = {{value}},
+    \\        /// {{{doc}}}
+    \\        {{{name}}} = {{{value}}},
     \\        {{/values}}
     \\    };
     \\    {{/builtin.enums}}
@@ -145,46 +145,46 @@ pub const class =
     \\
     \\    {{/class.inherits}}
     \\    {{#class.constants}}
-    \\    /// {{doc}}
-    \\    pub const {{name}}: i64 = {{value}};
+    \\    /// {{{doc}}}
+    \\    pub const {{{name}}}: i64 = {{{value}}};
     \\
     \\    {{/class.constants}}
     \\    {{#class.is_instantiable}}
-    \\    pub fn init() {{type}} {
+    \\    pub fn init() {{{type}}} {
     \\
     \\    }
     \\
     \\    {{/class.is_instantiable}}
     // \\    {{#class.properties}}
-    // \\    pub fn {{getter}}(self: *const {{class.name}}) {{type}} {
+    // \\    pub fn {{{getter}}}(self: *const {{class.name}}) {{{type}}} {
     // \\    }
     // \\
     // \\    {{#has_setter}}
-    // \\    pub fn {{setter}}(self: *{{class.name}}, value: {{type}}) void {
+    // \\    pub fn {{{setter}}}(self: *{{class.name}}, value: {{{type}}}) void {
     // \\    }
     // \\
     // \\    {{/has_setter}}
     // \\    {{/class.properties}}
     \\    {{#class.static_methods}}
-    \\    pub fn {{name}}({{#args}}, {{name}}: {{type}}{{/args}}) {{return_type}} {
+    \\    pub fn {{{name}}}({{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
     \\    }
     \\
     \\    {{/class.static_methods}}
     \\    {{#class.methods}}
-    \\    pub fn {{name}}(self: *{{#is_const}}const {{/is_const}}{{class.name}}{{#args}}, {{name}}: {{type}}{{/args}}) {{return_type}} {
+    \\    pub fn {{{name}}}(self: *{{#is_const}}const {{/is_const}}{{class.name}}{{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
     \\    }
     \\
     \\    {{/class.methods}}
     \\    {{#class.virtual_methods}}
-    \\    pub fn {{name}}(self: *{{class.name}}{{#args}}, {{name}}: {{type}}{{/args}}) {{return_type}} {
+    \\    pub fn {{{name}}}(self: *{{class.name}}{{#args}}, {{{name}}}: {{{type}}}{{/args}}) {{{return_type}}} {
     \\    }
     \\
     \\    {{/class.virtual_methods}}
     \\    {{#class.enums}}
-    \\    /// {{doc}}
-    \\    pub const {{name}} = enum(i32) {
+    \\    /// {{{doc}}}
+    \\    pub const {{{name}}} = enum(i32) {
     \\        {{#values}}
-    \\        {{name}} = {{value}},
+    \\        {{{name}}} = {{{value}}},
     \\        {{/values}}
     \\    };
     \\
@@ -204,29 +204,26 @@ pub const class =
 ;
 
 pub const @"enum" =
-    \\/// {{doc}}
+    \\/// {{{doc}}}
     \\pub const {{enum.name}} = enum(i32) {
     \\    {{#enum.values}}
-    \\    {{name}} = {{value}},
+    \\    {{{name}}} = {{{value}}},
     \\    {{/enum.values}}
     \\};
     \\
 ;
 
 pub const flag =
+    // The extraneous newlines are because of https://github.com/batiati/mustache-zig/issues/29
     \\/// {{flag.doc}}
     \\pub const {{flag.name}} = packed struct(i32) {
-    \\    {{#flag.values}}
-    \\    {{#is_power_of_two}}
-    \\    {{name}}: u1 = {{#is_default}}1{{/is_default}}{{^is_default}}0{{/is_default}},
-    \\    {{/is_power_of_two}}
-    \\    {{/flag.values}}
+    \\    {{#flag.fields}}
+    \\    {{{name}}}: u1 = {{value}},
+    \\    {{/flag.fields}}
     \\
-    \\    {{#flag.values}}
-    \\    {{^is_power_of_two}}
-    \\    pub const {{name}}: {{../name}} = @bitCast({{value}});
-    \\    {{/is_power_of_two}}
-    \\    {{/flag.values}}
+    \\    {{#flag.consts}}
+    \\    pub const {{{name}}}: {{flag.name}} = @bitCast({{{value}}});
+    \\    {{/flag.consts}}
     \\};
     \\
 ;
@@ -235,8 +232,8 @@ pub const function =
     \\/// {{function.doc}}
     \\pub const {{function.category}} = struct {
     \\    {{#function.functions}}
-    \\    /// {{doc}}
-    \\    pub fn {{name}}({{#args}}{{name}}: {{type}}, {{/args}}) {{return_type}} {
+    \\    /// {{{doc}}}
+    \\    pub fn {{{name}}}({{#args}}{{{name}}}: {{{type}}}, {{/args}}) {{{return_type}}} {
     \\        @panic("todo");
     \\    }
     \\    {{/function.functions}}

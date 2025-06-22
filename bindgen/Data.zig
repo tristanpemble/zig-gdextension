@@ -125,8 +125,8 @@ pub const Class = struct {
             doc: []const u8 = "",
             name: []const u8 = "",
             value: []const u8 = "",
+            is_field: bool = false,
             is_default: bool = false,
-            is_power_of_two: bool = false,
             bit_pos: u6 = 0,
         };
     };
@@ -178,16 +178,21 @@ pub const GlobalEnum = struct {
 pub const GlobalFlag = struct {
     doc: []const u8 = "",
     name: []const u8 = "",
-    has_values: bool,
-    values: []Value = &.{},
+    has_consts: bool,
+    consts: []Const = &.{},
+    has_fields: bool,
+    fields: []Field = &.{},
 
-    pub const Value = struct {
+    pub const Const = struct {
         doc: []const u8 = "",
         name: []const u8 = "",
-        value: []const u8 = "",
-        is_default: bool = false,
-        is_power_of_two: bool = false,
-        bit_pos: u6 = 0,
+        value: i64,
+    };
+
+    pub const Field = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        value: u1,
     };
 };
 

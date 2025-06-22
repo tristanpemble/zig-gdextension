@@ -1,36 +1,41 @@
+const Transformer = @This();
+
+allocator: Allocator,
+json: Schema,
+
 pub fn transform(allocator: Allocator, json: Schema) !Data {
-    const interfaces = try transformInterfaces(allocator);
-    const builtins = try transformBuiltins(allocator, json.builtin_classes);
-    const classes = try transformClasses(allocator, json.classes, json);
-    const constants = try transformGlobalConstants(allocator, json.global_constants);
-    const enums = try transformGlobalEnums(allocator, json.global_enums);
-    const flags = try transformGlobalFlags(allocator, json.global_enums);
-    const functions = try transformUtilityFunctions(allocator, json.utility_functions);
+    var self = Transformer{
+        .allocator = allocator,
+        .json = json,
+    };
+
+    const interfaces = try self.transformInterfaces();
+    const builtins = try self.transformBuiltins();
+    const classes = try self.transformClasses();
+    const constants = try self.transformGlobalConstants();
+    const enums = try self.transformGlobalEnums();
+    const flags = try self.transformGlobalFlags();
+    const functions = try self.transformUtilityFunctions();
 
     return .{
         .interfaces = interfaces,
+        .builtins = builtins,
+        .classes = classes,
+        .constants = constants,
+        .enums = enums,
+        .flags = flags,
+        .functions = functions,
 
         .has_builtins = builtins.len > 0,
-        .builtins = builtins,
-
         .has_classes = classes.len > 0,
-        .classes = classes,
-
         .has_constants = constants.len > 0,
-        .constants = constants,
-
         .has_enums = enums.len > 0,
-        .enums = enums,
-
         .has_flags = flags.len > 0,
-        .flags = flags,
-
         .has_functions = functions.len > 0,
-        .functions = functions,
     };
 }
 
-fn parseFunctionPointers(allocator: Allocator, header_path: []const u8) !std.StringHashMapUnmanaged([]const u8) {
+fn parseFunctionPointers(self: *Transformer, header_path: []const u8) !std.StringHashMapUnmanaged([]const u8) {
     const header_file = try std.fs.openFileAbsolute(header_path, .{});
     var buffered_reader = std.io.bufferedReader(header_file.reader());
     const reader = buffered_reader.reader();
@@ -50,7 +55,7 @@ fn parseFunctionPointers(allocator: Allocator, header_path: []const u8) !std.Str
         if (std.mem.containsAtLeast(u8, line, 1, name_doc)) {
             const name_index = std.mem.indexOf(u8, line, name_doc).?;
             const start = name_index + name_doc.len + 1; // +1 to skip the space after @name
-            fn_name = try allocator.dupe(u8, line[start..]);
+            fn_name = try self.allocator.dupe(u8, line[start..]);
             fp_type = null;
         } else if (std.mem.startsWith(u8, line, "typedef")) {
             if (fn_name == null) continue; // skip if we don't have a function name yet
@@ -66,11 +71,11 @@ fn parseFunctionPointers(allocator: Allocator, header_path: []const u8) !std.Str
             const fp_type_slice = iterator.next().?;
             const start = std.mem.indexOfAny(u8, fp_type_slice, safe_ident_chars).?;
             const end = std.mem.indexOf(u8, fp_type_slice[start..], ")").?;
-            fp_type = try allocator.dupe(u8, fp_type_slice[start..(end + start)]);
+            fp_type = try self.allocator.dupe(u8, fp_type_slice[start..(end + start)]);
         }
 
         if (fn_name) |_| if (fp_type) |_| {
-            try fp_map.putNoClobber(allocator, fp_type.?, fn_name.?);
+            try fp_map.putNoClobber(self.allocator, fp_type.?, fn_name.?);
 
             fn_name = null;
             fp_type = null;
@@ -80,15 +85,14 @@ fn parseFunctionPointers(allocator: Allocator, header_path: []const u8) !std.Str
     return fp_map;
 }
 
-fn transformInterfaces(allocator: Allocator) ![]Data.Interface {
-    const path = try std.fs.cwd().realpathAlloc(allocator, "gdextension_interface.h");
-    std.debug.print("{s}\n", .{path});
-    var fp_map = try parseFunctionPointers(allocator, path);
+fn transformInterfaces(self: *Transformer) ![]Data.Interface {
+    const path = try std.fs.cwd().realpathAlloc(self.allocator, "gdextension_interface.h");
+    var fp_map = try self.parseFunctionPointers(path);
     var result = std.ArrayListUnmanaged(Data.Interface){};
 
     for (comptime @typeInfo(gd).@"struct".decls) |decl| {
         if (std.mem.startsWith(u8, decl.name, "GDExtensionInterface")) {
-            const name = try std.mem.replaceOwned(u8, allocator, decl.name, "GDExtensionInterface", "");
+            const name = try std.mem.replaceOwned(u8, self.allocator, decl.name, "GDExtensionInterface", "");
             if (std.mem.eql(u8, name, "FunctionPtr") or std.mem.eql(u8, name, "GetProcAddress")) {
                 continue;
             }
@@ -97,7 +101,7 @@ fn transformInterfaces(allocator: Allocator) ![]Data.Interface {
 
             name[0] = std.ascii.toLower(name[0]);
 
-            try result.append(allocator, .{
+            try result.append(self.allocator, .{
                 .name = name,
                 .proc_name = proc_name,
                 .type = decl.name,
@@ -108,62 +112,70 @@ fn transformInterfaces(allocator: Allocator) ![]Data.Interface {
     return result.items;
 }
 
-fn transformGlobalConstants(allocator: Allocator, constants: []Schema.GlobalConstant) ![]Data.GlobalConstant {
-    var result = try allocator.alloc(Data.GlobalConstant, constants.len);
-    for (constants, 0..) |constant, i| {
+fn transformGlobalConstants(self: *Transformer) ![]Data.GlobalConstant {
+    var result = try self.allocator.alloc(Data.GlobalConstant, self.json.global_constants.len);
+    for (self.json.global_constants, 0..) |constant, i| {
         result[i] = Data.GlobalConstant{
-            .name = try formatName(allocator, Data.Name.val(constant.name)),
-            .value = try allocator.dupe(u8, constant.value),
+            .name = try self.formatName(Data.Name.val(constant.name)),
+            .value = try self.allocator.dupe(u8, constant.value),
         };
     }
     return result;
 }
 
-fn transformGlobalEnums(allocator: Allocator, enums: []Schema.GlobalEnum) ![]Data.GlobalEnum {
-    var len: u32 = 0;
-    for (enums) |enum_def| {
+fn transformGlobalEnums(self: *Transformer) ![]Data.GlobalEnum {
+    var capacity: u32 = 0;
+    for (self.json.global_enums) |enum_def| {
         if (enum_def.is_bitfield) continue;
-        len += 1;
+        capacity += 1;
     }
 
-    var result = try allocator.alloc(Data.GlobalEnum, len);
-    var i: u32 = 0;
-    for (enums) |enum_def| {
+    var result = try std.ArrayListUnmanaged(Data.GlobalEnum).initCapacity(self.allocator, capacity);
+    for (self.json.global_enums) |enum_def| {
         if (enum_def.is_bitfield) continue;
 
-        var values = try allocator.alloc(Data.GlobalEnum.Value, enum_def.values.len);
+        var values = try self.allocator.alloc(Data.GlobalEnum.Value, enum_def.values.len);
 
         for (enum_def.values, 0..) |value, j| {
             values[j] = Data.GlobalEnum.Value{
-                .name = try formatName(allocator, enumFieldName(enum_def.name, value.name)),
-                .value = try std.fmt.allocPrint(allocator, "{d}", .{value.value}),
+                .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
             };
         }
 
-        result[i] = Data.GlobalEnum{
-            .name = try formatName(allocator, Data.Name.type_(enum_def.name)),
+        result.appendAssumeCapacity(Data.GlobalEnum{
+            .name = try self.formatName(Data.Name.type_(enum_def.name)),
             .has_values = values.len > 0,
             .values = values,
-        };
-
-        i += 1;
+        });
     }
-    return result;
+    return result.items;
 }
 
-fn transformGlobalFlags(allocator: Allocator, flags: []Schema.GlobalEnum) ![]Data.GlobalFlag {
-    var len: u32 = 0;
-    for (flags) |flag_def| {
+fn transformGlobalFlags(self: *Transformer) ![]Data.GlobalFlag {
+    var flag_capacity: u32 = 0;
+    for (self.json.global_enums) |flag_def| {
         if (!flag_def.is_bitfield) continue;
-        len += 1;
+        flag_capacity += 1;
     }
 
-    var result = try allocator.alloc(Data.GlobalFlag, len);
-    var i: u32 = 0;
-    for (flags) |flag_def| {
+    var result = try std.ArrayListUnmanaged(Data.GlobalFlag).initCapacity(self.allocator, flag_capacity);
+    for (self.json.global_enums) |flag_def| {
         if (!flag_def.is_bitfield) continue;
 
-        var values = try allocator.alloc(Data.GlobalFlag.Value, flag_def.values.len);
+        var const_capacity: u32 = 0;
+        var field_capacity: u32 = 0;
+        for (flag_def.values) |value_def| {
+            const is_field = value_def.value > 0 and (value_def.value & (value_def.value - 1)) == 0;
+            if (is_field) {
+                field_capacity += 1;
+            } else {
+                const_capacity += 1;
+            }
+        }
+
+        var consts = try std.ArrayListUnmanaged(Data.GlobalFlag.Const).initCapacity(self.allocator, const_capacity);
+        var fields = try std.ArrayListUnmanaged(Data.GlobalFlag.Field).initCapacity(self.allocator, field_capacity);
 
         // Find default value
         const default: i64 = blk: {
@@ -176,44 +188,50 @@ fn transformGlobalFlags(allocator: Allocator, flags: []Schema.GlobalEnum) ![]Dat
         };
 
         var current_bit: u6 = 0;
-        for (flag_def.values, 0..) |value, j| {
+        for (flag_def.values) |value| {
+            const is_field = value.value > 0 and (value.value & (value.value - 1)) == 0;
             const is_default = std.mem.endsWith(u8, value.name, "DEFAULT") or (default & value.value) == value.value;
-            const is_power_of_two = value.value > 0 and (value.value & (value.value - 1)) == 0;
-            const bit_pos = if (is_power_of_two) @ctz(value.value) else 0;
+            const bit_pos = if (is_field) @ctz(value.value) else 0;
 
-            if (is_power_of_two and value.value >= (@as(i64, 1) << current_bit)) {
+            if (is_field and value.value >= (@as(i64, 1) << current_bit)) {
                 current_bit = @intCast(bit_pos + 1);
             }
 
-            values[j] = Data.GlobalFlag.Value{
-                .name = try formatName(allocator, enumFieldName(flag_def.name, value.name)),
-                .value = try std.fmt.allocPrint(allocator, "{d}", .{value.value}),
-                .is_default = is_default,
-                .is_power_of_two = is_power_of_two,
-                .bit_pos = @intCast(bit_pos),
-            };
+            if (is_field) {
+                fields.appendAssumeCapacity(.{
+                    .name = try self.formatName(enumFieldName(flag_def.name, value.name)),
+                    .value = @intFromBool(is_default),
+                });
+            } else {
+                consts.appendAssumeCapacity(.{
+                    .name = try self.formatName(enumFieldName(flag_def.name, value.name)),
+                    .value = value.value,
+                });
+            }
         }
 
-        result[i] = Data.GlobalFlag{
-            .name = try formatName(allocator, Data.Name.type_(flag_def.name)),
-            .has_values = values.len > 0,
-            .values = values,
-        };
-        i += 1;
+        result.appendAssumeCapacity(Data.GlobalFlag{
+            .name = try self.formatName(Data.Name.type_(flag_def.name)),
+            .has_consts = consts.items.len > 0,
+            .consts = consts.items,
+            .has_fields = fields.items.len > 0,
+            .fields = fields.items,
+        });
     }
-    return result;
+
+    return result.items;
 }
 
-fn transformBuiltins(allocator: Allocator, builtins: []Schema.Builtin) ![]Data.Builtin {
-    var result = try allocator.alloc(Data.Builtin, builtins.len);
-    for (builtins, 0..) |builtin, i| {
-        const formatted_name = try formatName(allocator, Data.Name.type_(builtin.name));
+fn transformBuiltins(self: *Transformer) ![]Data.Builtin {
+    var result = try self.allocator.alloc(Data.Builtin, self.json.builtin_classes.len);
+    for (self.json.builtin_classes, 0..) |builtin, i| {
+        const formatted_name = try self.formatName(Data.Name.type_(builtin.name));
 
-        const members = @constCast(if (builtin.members) |members| try transformBuiltinMembers(allocator, members) else &.{});
-        const constants = @constCast(if (builtin.constants) |constants| try transformBuiltinConstants(allocator, constants) else &.{});
-        const constructors = @constCast(try transformBuiltinConstructors(allocator, builtin.constructors, formatted_name));
-        const methods = @constCast(if (builtin.methods) |methods| try transformBuiltinMethods(allocator, methods) else &.{});
-        const enums = @constCast(if (builtin.enums) |enums| try transformBuiltinEnums(allocator, enums) else &.{});
+        const members = @constCast(if (builtin.members) |members| try self.transformBuiltinMembers(members) else &.{});
+        const constants = @constCast(if (builtin.constants) |constants| try self.transformBuiltinConstants(constants) else &.{});
+        const constructors = @constCast(try self.transformBuiltinConstructors(builtin.constructors, formatted_name));
+        const methods = @constCast(if (builtin.methods) |methods| try self.transformBuiltinMethods(methods) else &.{});
+        const enums = @constCast(if (builtin.enums) |enums| try self.transformBuiltinEnums(enums) else &.{});
 
         result[i] = Data.Builtin{
             .name = formatted_name,
@@ -232,96 +250,96 @@ fn transformBuiltins(allocator: Allocator, builtins: []Schema.Builtin) ![]Data.B
     return result;
 }
 
-fn transformBuiltinMembers(allocator: Allocator, members: []Schema.Builtin.Member) ![]Data.Builtin.Member {
-    var result = try allocator.alloc(Data.Builtin.Member, members.len);
+fn transformBuiltinMembers(self: *Transformer, members: []Schema.Builtin.Member) ![]Data.Builtin.Member {
+    var result = try self.allocator.alloc(Data.Builtin.Member, members.len);
     for (members, 0..) |member, i| {
         result[i] = Data.Builtin.Member{
-            .name = try formatName(allocator, Data.Name.val(member.name)),
-            .type = try formatName(allocator, Data.Name.type_(member.type)),
+            .name = try self.formatName(Data.Name.val(member.name)),
+            .type = try self.formatName(Data.Name.type_(member.type)),
         };
     }
     return result;
 }
 
-fn transformBuiltinConstants(allocator: Allocator, constants: []Schema.Builtin.Constant) ![]Data.Builtin.Constant {
-    var result = try allocator.alloc(Data.Builtin.Constant, constants.len);
+fn transformBuiltinConstants(self: *Transformer, constants: []Schema.Builtin.Constant) ![]Data.Builtin.Constant {
+    var result = try self.allocator.alloc(Data.Builtin.Constant, constants.len);
     for (constants, 0..) |constant, i| {
         result[i] = Data.Builtin.Constant{
-            .name = try formatName(allocator, Data.Name.val(constant.name)),
-            .type = try formatName(allocator, Data.Name.type_(constant.type)),
-            .value = try allocator.dupe(u8, constant.value),
+            .name = try self.formatName(Data.Name.val(constant.name)),
+            .type = try self.formatName(Data.Name.type_(constant.type)),
+            .value = try self.allocator.dupe(u8, constant.value),
         };
     }
     return result;
 }
 
-fn transformBuiltinConstructors(allocator: Allocator, constructors: []Schema.Builtin.Constructor, builtin_name: []const u8) ![]Data.Builtin.Constructor {
-    var result = try allocator.alloc(Data.Builtin.Constructor, constructors.len);
+fn transformBuiltinConstructors(self: *Transformer, constructors: []Schema.Builtin.Constructor, builtin_name: []const u8) ![]Data.Builtin.Constructor {
+    var result = try self.allocator.alloc(Data.Builtin.Constructor, constructors.len);
     for (constructors, 0..) |constructor, i| {
-        const args = @constCast(if (constructor.arguments) |args| try transformBuiltinConstructorArgs(allocator, args) else &.{});
+        const args = @constCast(if (constructor.arguments) |args| try self.transformBuiltinConstructorArgs(args) else &.{});
         result[i] = Data.Builtin.Constructor{
-            .name = try std.fmt.allocPrint(allocator, "init{d}", .{constructor.index}),
+            .name = try std.fmt.allocPrint(self.allocator, "init{d}", .{constructor.index}),
             .type = "GDExtensionPtrConstructor",
-            .offset = try std.fmt.allocPrint(allocator, "{d}", .{constructor.index}),
+            .offset = try std.fmt.allocPrint(self.allocator, "{d}", .{constructor.index}),
             .has_args = args.len > 0,
             .args = args,
-            .return_type = try std.fmt.allocPrint(allocator, "!{s}", .{builtin_name}),
+            .return_type = try std.fmt.allocPrint(self.allocator, "!{s}", .{builtin_name}),
         };
     }
     return result;
 }
 
-fn transformBuiltinConstructorArgs(allocator: Allocator, args: []Schema.Builtin.Constructor.Argument) ![]Data.Builtin.Constructor.Arg {
-    var result = try allocator.alloc(Data.Builtin.Constructor.Arg, args.len);
+fn transformBuiltinConstructorArgs(self: *Transformer, args: []Schema.Builtin.Constructor.Argument) ![]Data.Builtin.Constructor.Arg {
+    var result = try self.allocator.alloc(Data.Builtin.Constructor.Arg, args.len);
     for (args, 0..) |arg, i| {
         result[i] = Data.Builtin.Constructor.Arg{
-            .name = try formatName(allocator, Data.Name.val(arg.name)),
-            .type = try formatName(allocator, Data.Name.type_(arg.type)),
+            .name = try self.formatName(Data.Name.val(arg.name)),
+            .type = try self.formatName(Data.Name.type_(arg.type)),
         };
     }
     return result;
 }
 
-fn transformBuiltinMethods(allocator: Allocator, methods: []Schema.Builtin.Method) ![]Data.Builtin.Method {
-    var result = try allocator.alloc(Data.Builtin.Method, methods.len);
+fn transformBuiltinMethods(self: *Transformer, methods: []Schema.Builtin.Method) ![]Data.Builtin.Method {
+    var result = try self.allocator.alloc(Data.Builtin.Method, methods.len);
     for (methods, 0..) |method, i| {
-        const args = @constCast(if (method.arguments) |args| try transformBuiltinMethodArgs(allocator, args) else &.{});
+        const args = @constCast(if (method.arguments) |args| try self.transformBuiltinMethodArgs(args) else &.{});
         result[i] = Data.Builtin.Method{
-            .name = try formatName(allocator, Data.Name.func(method.name)),
+            .name = try self.formatName(Data.Name.func(method.name)),
             .type = "GDExtensionPtrBuiltInMethod",
-            .offset = try std.fmt.allocPrint(allocator, "{d}", .{method.hash}),
+            .offset = try std.fmt.allocPrint(self.allocator, "{d}", .{method.hash}),
             .has_args = args.len > 0,
             .args = args,
-            .return_type = try formatName(allocator, Data.Name.type_(method.return_type)),
+            .return_type = try self.formatName(Data.Name.type_(method.return_type)),
         };
     }
     return result;
 }
 
-fn transformBuiltinMethodArgs(allocator: Allocator, args: []Schema.Builtin.Method.Argument) ![]Data.Builtin.Method.Arg {
-    var result = try allocator.alloc(Data.Builtin.Method.Arg, args.len);
+fn transformBuiltinMethodArgs(self: *Transformer, args: []Schema.Builtin.Method.Argument) ![]Data.Builtin.Method.Arg {
+    var result = try self.allocator.alloc(Data.Builtin.Method.Arg, args.len);
     for (args, 0..) |arg, i| {
         result[i] = Data.Builtin.Method.Arg{
-            .name = try formatName(allocator, Data.Name.val(arg.name)),
-            .type = try formatName(allocator, Data.Name.type_(arg.type)),
+            .name = try self.formatName(Data.Name.val(arg.name)),
+            .type = try self.formatName(Data.Name.type_(arg.type)),
         };
     }
     return result;
 }
 
-fn transformBuiltinEnums(allocator: Allocator, enums: []Schema.Builtin.Enum) ![]Data.Builtin.Enum {
-    var result = try allocator.alloc(Data.Builtin.Enum, enums.len);
+fn transformBuiltinEnums(self: *Transformer, enums: []Schema.Builtin.Enum) ![]Data.Builtin.Enum {
+    var result = try self.allocator.alloc(Data.Builtin.Enum, enums.len);
     for (enums, 0..) |enum_def, i| {
-        var values = try allocator.alloc(Data.Builtin.Enum.Value, enum_def.values.len);
+        var values = try self.allocator.alloc(Data.Builtin.Enum.Value, enum_def.values.len);
         for (enum_def.values, 0..) |value, j| {
             values[j] = Data.Builtin.Enum.Value{
-                .name = try formatName(allocator, Data.Name.val(value.name)),
-                .value = try std.fmt.allocPrint(allocator, "{d}", .{value.value}),
+                .name = try self.formatName(Data.Name.val(value.name)),
+                .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
             };
         }
 
         result[i] = Data.Builtin.Enum{
-            .name = try formatName(allocator, Data.Name.type_(enum_def.name)),
+            .name = try self.formatName(Data.Name.type_(enum_def.name)),
             .has_values = values.len > 0,
             .values = values,
         };
@@ -329,12 +347,12 @@ fn transformBuiltinEnums(allocator: Allocator, enums: []Schema.Builtin.Enum) ![]
     return result;
 }
 
-fn transformClasses(allocator: Allocator, classes: []Schema.Class, json: Schema) ![]Data.Class {
-    var result = try allocator.alloc(Data.Class, classes.len);
-    for (classes, 0..) |class, i| {
-        var static_methods = std.ArrayList(Data.Class.Method).init(allocator);
-        var methods = std.ArrayList(Data.Class.Method).init(allocator);
-        var virtual_methods = std.ArrayList(Data.Class.Method).init(allocator);
+fn transformClasses(self: *Transformer) ![]Data.Class {
+    var result = try self.allocator.alloc(Data.Class, self.json.classes.len);
+    for (self.json.classes, 0..) |class, i| {
+        var static_methods = std.ArrayList(Data.Class.Method).init(self.allocator);
+        var methods = std.ArrayList(Data.Class.Method).init(self.allocator);
+        var virtual_methods = std.ArrayList(Data.Class.Method).init(self.allocator);
 
         if (class.methods) |class_methods| {
             for (class_methods) |method| {
@@ -343,13 +361,13 @@ fn transformClasses(allocator: Allocator, classes: []Schema.Class, json: Schema)
                 else
                     Data.Name.func(method.name);
 
-                const args = @constCast(if (method.arguments) |args| try transformClassMethodArgs(allocator, args) else &.{});
+                const args = @constCast(if (method.arguments) |args| try self.transformClassMethodArgs(args) else &.{});
 
                 const transformed_method = Data.Class.Method{
-                    .name = try formatName(allocator, method_name),
+                    .name = try self.formatName(method_name),
                     .is_const = method.is_const,
                     .is_virtual = method.is_virtual,
-                    .return_type = try formatName(allocator, if (method.return_value) |ret| Data.Name.type_(ret.type) else Data.Name.type_("void")),
+                    .return_type = try self.formatName(if (method.return_value) |ret| Data.Name.type_(ret.type) else Data.Name.type_("void")),
                     .has_args = args.len > 0,
                     .args = args,
                 };
@@ -364,14 +382,14 @@ fn transformClasses(allocator: Allocator, classes: []Schema.Class, json: Schema)
             }
         }
 
-        const constants = @constCast(if (class.constants) |constants| try transformClassConstants(allocator, constants) else &.{});
-        const enums = @constCast(if (class.enums) |enums| try transformClassEnums(allocator, enums) else &.{});
-        const properties = @constCast(if (class.properties) |properties| try transformClassProperties(allocator, properties) else &.{});
+        const constants = @constCast(if (class.constants) |constants| try self.transformClassConstants(constants) else &.{});
+        const enums = @constCast(if (class.enums) |enums| try self.transformClassEnums(enums) else &.{});
+        const properties = @constCast(if (class.properties) |properties| try self.transformClassProperties(properties) else &.{});
 
         result[i] = Data.Class{
-            .name = try formatName(allocator, Data.Name.type_(class.name)),
-            .is_singleton = is_singleton(&json, class.name),
-            .inherits = if (class.inherits) |inherits| try formatName(allocator, Data.Name.type_(inherits)) else null,
+            .name = try self.formatName(Data.Name.type_(class.name)),
+            .is_singleton = self.is_singleton(class.name),
+            .inherits = if (class.inherits) |inherits| try self.formatName(Data.Name.type_(inherits)) else null,
             .is_instantiable = class.is_instantiable,
             .has_constants = constants.len > 0,
             .constants = constants,
@@ -390,21 +408,21 @@ fn transformClasses(allocator: Allocator, classes: []Schema.Class, json: Schema)
     return result;
 }
 
-fn transformClassConstants(allocator: Allocator, constants: []Schema.Class.Constant) ![]Data.Class.Constant {
-    var result = try allocator.alloc(Data.Class.Constant, constants.len);
+fn transformClassConstants(self: *Transformer, constants: []Schema.Class.Constant) ![]Data.Class.Constant {
+    var result = try self.allocator.alloc(Data.Class.Constant, constants.len);
     for (constants, 0..) |constant, i| {
         result[i] = Data.Class.Constant{
-            .name = try formatName(allocator, Data.Name.val(constant.name)),
-            .value = try std.fmt.allocPrint(allocator, "{d}", .{constant.value}),
+            .name = try self.formatName(Data.Name.val(constant.name)),
+            .value = try std.fmt.allocPrint(self.allocator, "{d}", .{constant.value}),
         };
     }
     return result;
 }
 
-fn transformClassEnums(allocator: Allocator, enums: []Schema.Class.Enum) ![]Data.Class.Enum {
-    var result = try allocator.alloc(Data.Class.Enum, enums.len);
+fn transformClassEnums(self: *Transformer, enums: []Schema.Class.Enum) ![]Data.Class.Enum {
+    var result = try self.allocator.alloc(Data.Class.Enum, enums.len);
     for (enums, 0..) |enum_def, i| {
-        var values = try allocator.alloc(Data.Class.Enum.Value, enum_def.values.len);
+        var values = try self.allocator.alloc(Data.Class.Enum.Value, enum_def.values.len);
 
         // Find default value
         const default: i64 = blk: {
@@ -418,25 +436,25 @@ fn transformClassEnums(allocator: Allocator, enums: []Schema.Class.Enum) ![]Data
 
         var current_bit: u6 = 0;
         for (enum_def.values, 0..) |value, j| {
+            const is_field = value.value > 0 and (value.value & (value.value - 1)) == 0;
             const is_default = std.mem.endsWith(u8, value.name, "DEFAULT") or (default & value.value) == value.value;
-            const is_power_of_two = value.value > 0 and (value.value & (value.value - 1)) == 0;
-            const bit_pos = if (is_power_of_two) @ctz(value.value) else 0;
+            const bit_pos = if (is_field) @ctz(value.value) else 0;
 
-            if (is_power_of_two and value.value >= (@as(i64, 1) << current_bit)) {
+            if (is_field and value.value >= (@as(i64, 1) << current_bit)) {
                 current_bit = @intCast(bit_pos + 1);
             }
 
             values[j] = Data.Class.Enum.Value{
-                .name = try formatName(allocator, enumFieldName(enum_def.name, value.name)),
-                .value = try std.fmt.allocPrint(allocator, "{d}", .{value.value}),
+                .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
+                .is_field = is_field,
                 .is_default = is_default,
-                .is_power_of_two = is_power_of_two,
                 .bit_pos = @intCast(bit_pos),
             };
         }
 
         result[i] = Data.Class.Enum{
-            .name = try formatName(allocator, Data.Name.type_(enum_def.name)),
+            .name = try self.formatName(Data.Name.type_(enum_def.name)),
             .is_bitfield = enum_def.is_bitfield,
             .has_values = values.len > 0,
             .values = values,
@@ -445,33 +463,33 @@ fn transformClassEnums(allocator: Allocator, enums: []Schema.Class.Enum) ![]Data
     return result;
 }
 
-fn transformClassProperties(allocator: Allocator, properties: []Schema.Class.Property) ![]Data.Class.Property {
-    var result = try allocator.alloc(Data.Class.Property, properties.len);
+fn transformClassProperties(self: *Transformer, properties: []Schema.Class.Property) ![]Data.Class.Property {
+    var result = try self.allocator.alloc(Data.Class.Property, properties.len);
     for (properties, 0..) |property, i| {
         result[i] = Data.Class.Property{
-            .name = try formatName(allocator, Data.Name.val(property.name)),
-            .type = try formatName(allocator, Data.Name.type_(property.type)),
-            .getter = try formatName(allocator, Data.Name.func(property.getter)),
+            .name = try self.formatName(Data.Name.val(property.name)),
+            .type = try self.formatName(Data.Name.type_(property.type)),
+            .getter = try self.formatName(Data.Name.func(property.getter)),
             .has_setter = property.setter != null,
-            .setter = if (property.setter) |setter| try formatName(allocator, Data.Name.func(setter)) else null,
+            .setter = if (property.setter) |setter| try self.formatName(Data.Name.func(setter)) else null,
         };
     }
     return result;
 }
 
-fn transformClassMethodArgs(allocator: Allocator, args: []Schema.Class.Method.Argument) ![]Data.Class.Method.Arg {
-    var result = try allocator.alloc(Data.Class.Method.Arg, args.len);
+fn transformClassMethodArgs(self: *Transformer, args: []Schema.Class.Method.Argument) ![]Data.Class.Method.Arg {
+    var result = try self.allocator.alloc(Data.Class.Method.Arg, args.len);
     for (args, 0..) |arg, i| {
         result[i] = Data.Class.Method.Arg{
-            .name = try formatName(allocator, Data.Name.val(arg.name)),
-            .type = try formatName(allocator, Data.Name.type_(arg.type)),
+            .name = try self.formatName(Data.Name.val(arg.name)),
+            .type = try self.formatName(Data.Name.type_(arg.type)),
         };
     }
     return result;
 }
 
-fn transformUtilityFunctions(allocator: Allocator, functions: []Schema.UtilityFunction) ![]Data.Function {
-    var categories = std.StringHashMap(std.ArrayList(Data.Function.FunctionDef)).init(allocator);
+fn transformUtilityFunctions(self: *Transformer) ![]Data.Function {
+    var categories = std.StringHashMap(std.ArrayList(Data.Function.FunctionDef)).init(self.allocator);
     defer {
         var iter = categories.iterator();
         while (iter.next()) |entry| {
@@ -480,17 +498,17 @@ fn transformUtilityFunctions(allocator: Allocator, functions: []Schema.UtilityFu
         categories.deinit();
     }
 
-    for (functions) |func| {
+    for (self.json.utility_functions) |func| {
         const entry = try categories.getOrPut(func.category);
         if (!entry.found_existing) {
-            entry.value_ptr.* = std.ArrayList(Data.Function.FunctionDef).init(allocator);
+            entry.value_ptr.* = std.ArrayList(Data.Function.FunctionDef).init(self.allocator);
         }
 
-        const args = try transformUtilityFunctionArgs(allocator, func.arguments);
+        const args = try self.transformUtilityFunctionArgs(func.arguments);
 
         const function_def = Data.Function.FunctionDef{
-            .name = try formatName(allocator, Data.Name.func(func.name)),
-            .return_type = try formatName(allocator, if (func.return_type) |ret| Data.Name.type_(ret) else Data.Name.type_("void")),
+            .name = try self.formatName(Data.Name.func(func.name)),
+            .return_type = try self.formatName(if (func.return_type) |ret| Data.Name.type_(ret) else Data.Name.type_("void")),
             .has_args = args.len > 0,
             .args = args,
         };
@@ -498,12 +516,12 @@ fn transformUtilityFunctions(allocator: Allocator, functions: []Schema.UtilityFu
         try entry.value_ptr.append(function_def);
     }
 
-    var result = try allocator.alloc(Data.Function, categories.count());
+    var result = try self.allocator.alloc(Data.Function, categories.count());
     var iter = categories.iterator();
     var i: usize = 0;
     while (iter.next()) |entry| {
         result[i] = Data.Function{
-            .category = try formatName(allocator, Data.Name.val(entry.key_ptr.*)),
+            .category = try self.formatName(Data.Name.val(entry.key_ptr.*)),
             .has_functions = entry.value_ptr.items.len > 0,
             .functions = try entry.value_ptr.toOwnedSlice(),
         };
@@ -513,22 +531,22 @@ fn transformUtilityFunctions(allocator: Allocator, functions: []Schema.UtilityFu
     return result;
 }
 
-fn transformUtilityFunctionArgs(allocator: Allocator, args: []Schema.UtilityFunction.Argument) ![]Data.Function.FunctionDef.Arg {
-    var result = try allocator.alloc(Data.Function.FunctionDef.Arg, args.len);
+fn transformUtilityFunctionArgs(self: *Transformer, args: []Schema.UtilityFunction.Argument) ![]Data.Function.FunctionDef.Arg {
+    var result = try self.allocator.alloc(Data.Function.FunctionDef.Arg, args.len);
     for (args, 0..) |arg, i| {
         result[i] = Data.Function.FunctionDef.Arg{
-            .name = try formatName(allocator, Data.Name.val(arg.name)),
-            .type = try formatName(allocator, Data.Name.type_(arg.type)),
+            .name = try self.formatName(Data.Name.val(arg.name)),
+            .type = try self.formatName(Data.Name.type_(arg.type)),
         };
     }
     return result;
 }
 
-fn formatName(allocator: Allocator, name: Data.Name) ![]u8 {
+fn formatName(self: *Transformer, name: Data.Name) ![]u8 {
     var buf: [256]u8 = undefined;
     var stream = std.io.fixedBufferStream(&buf);
     try name.format("", .{}, stream.writer());
-    return try allocator.dupe(u8, buf[0..stream.pos]);
+    return try self.allocator.dupe(u8, buf[0..stream.pos]);
 }
 
 fn enumFieldName(@"enum": []const u8, field: []const u8) Data.Name {
@@ -570,8 +588,8 @@ fn enumFieldName(@"enum": []const u8, field: []const u8) Data.Name {
     return Data.Name{ .snake = field };
 }
 
-fn is_singleton(self: *const Schema, name: []const u8) bool {
-    for (self.singletons) |singleton| {
+fn is_singleton(self: *Transformer, name: []const u8) bool {
+    for (self.json.singletons) |singleton| {
         if (std.mem.eql(u8, singleton.name, name)) return true;
     }
     return false;
