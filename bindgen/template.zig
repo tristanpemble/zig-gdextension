@@ -189,6 +189,19 @@ pub const class =
     \\    };
     \\
     \\    {{/class.enums}}
+    \\    {{#class.flags}}
+    \\    /// {{{doc}}}
+    \\    pub const {{{name}}} = packed struct(i32) {
+    \\        {{#values}}
+    \\        {{{name}}}: u1 = {{value}},
+    \\        {{/values}}
+    \\
+    \\        {{#consts}}
+    \\        pub const {{{name}}}: @This() = @bitCast({{{value}}});
+    \\        {{/consts}}
+    \\    };
+    \\
+    \\    {{/class.flags}}
     \\    {{#class.is_singleton}}
     \\    var instance: ?{{class.name}} = undefined;
     \\
@@ -217,12 +230,12 @@ pub const flag =
     // The extraneous newlines are because of https://github.com/batiati/mustache-zig/issues/29
     \\/// {{flag.doc}}
     \\pub const {{flag.name}} = packed struct(i32) {
-    \\    {{#flag.fields}}
+    \\    {{#flag.values}}
     \\    {{{name}}}: u1 = {{value}},
-    \\    {{/flag.fields}}
+    \\    {{/flag.values}}
     \\
     \\    {{#flag.consts}}
-    \\    pub const {{{name}}}: {{flag.name}} = @bitCast({{{value}}});
+    \\    pub const {{{name}}}: @This() = @bitCast({{{value}}});
     \\    {{/flag.consts}}
     \\};
     \\

@@ -123,27 +123,27 @@ fn transformGlobalConstants(self: *Transformer) ![]Data.GlobalConstant {
     return result;
 }
 
-fn transformGlobalEnums(self: *Transformer) ![]Data.GlobalEnum {
+fn transformGlobalEnums(self: *Transformer) ![]Data.Enum {
     var capacity: u32 = 0;
     for (self.json.global_enums) |enum_def| {
         if (enum_def.is_bitfield) continue;
         capacity += 1;
     }
 
-    var result = try std.ArrayListUnmanaged(Data.GlobalEnum).initCapacity(self.allocator, capacity);
+    var result = try std.ArrayListUnmanaged(Data.Enum).initCapacity(self.allocator, capacity);
     for (self.json.global_enums) |enum_def| {
         if (enum_def.is_bitfield) continue;
 
-        var values = try self.allocator.alloc(Data.GlobalEnum.Value, enum_def.values.len);
+        var values = try self.allocator.alloc(Data.Enum.Value, enum_def.values.len);
 
         for (enum_def.values, 0..) |value, j| {
-            values[j] = Data.GlobalEnum.Value{
+            values[j] = Data.Enum.Value{
                 .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
                 .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
             };
         }
 
-        result.appendAssumeCapacity(Data.GlobalEnum{
+        result.appendAssumeCapacity(Data.Enum{
             .name = try self.formatName(Data.Name.type_(enum_def.name)),
             .has_values = values.len > 0,
             .values = values,
@@ -152,14 +152,14 @@ fn transformGlobalEnums(self: *Transformer) ![]Data.GlobalEnum {
     return result.items;
 }
 
-fn transformGlobalFlags(self: *Transformer) ![]Data.GlobalFlag {
+fn transformGlobalFlags(self: *Transformer) ![]Data.Flag {
     var flag_capacity: u32 = 0;
     for (self.json.global_enums) |flag_def| {
         if (!flag_def.is_bitfield) continue;
         flag_capacity += 1;
     }
 
-    var result = try std.ArrayListUnmanaged(Data.GlobalFlag).initCapacity(self.allocator, flag_capacity);
+    var result = try std.ArrayListUnmanaged(Data.Flag).initCapacity(self.allocator, flag_capacity);
     for (self.json.global_enums) |flag_def| {
         if (!flag_def.is_bitfield) continue;
 
@@ -174,8 +174,8 @@ fn transformGlobalFlags(self: *Transformer) ![]Data.GlobalFlag {
             }
         }
 
-        var consts = try std.ArrayListUnmanaged(Data.GlobalFlag.Const).initCapacity(self.allocator, const_capacity);
-        var fields = try std.ArrayListUnmanaged(Data.GlobalFlag.Field).initCapacity(self.allocator, field_capacity);
+        var consts = try std.ArrayListUnmanaged(Data.Flag.Const).initCapacity(self.allocator, const_capacity);
+        var fields = try std.ArrayListUnmanaged(Data.Flag.Value).initCapacity(self.allocator, field_capacity);
 
         // Find default value
         const default: i64 = blk: {
@@ -210,12 +210,12 @@ fn transformGlobalFlags(self: *Transformer) ![]Data.GlobalFlag {
             }
         }
 
-        result.appendAssumeCapacity(Data.GlobalFlag{
+        result.appendAssumeCapacity(Data.Flag{
             .name = try self.formatName(Data.Name.type_(flag_def.name)),
             .has_consts = consts.items.len > 0,
             .consts = consts.items,
-            .has_fields = fields.items.len > 0,
-            .fields = fields.items,
+            .has_values = fields.items.len > 0,
+            .values = fields.items,
         });
     }
 
@@ -327,18 +327,18 @@ fn transformBuiltinMethodArgs(self: *Transformer, args: []Schema.Builtin.Method.
     return result;
 }
 
-fn transformBuiltinEnums(self: *Transformer, enums: []Schema.Builtin.Enum) ![]Data.Builtin.Enum {
-    var result = try self.allocator.alloc(Data.Builtin.Enum, enums.len);
+fn transformBuiltinEnums(self: *Transformer, enums: []Schema.Builtin.Enum) ![]Data.Enum {
+    var result = try self.allocator.alloc(Data.Enum, enums.len);
     for (enums, 0..) |enum_def, i| {
-        var values = try self.allocator.alloc(Data.Builtin.Enum.Value, enum_def.values.len);
+        var values = try self.allocator.alloc(Data.Enum.Value, enum_def.values.len);
         for (enum_def.values, 0..) |value, j| {
-            values[j] = Data.Builtin.Enum.Value{
+            values[j] = Data.Enum.Value{
                 .name = try self.formatName(Data.Name.val(value.name)),
                 .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
             };
         }
 
-        result[i] = Data.Builtin.Enum{
+        result[i] = Data.Enum{
             .name = try self.formatName(Data.Name.type_(enum_def.name)),
             .has_values = values.len > 0,
             .values = values,
@@ -383,7 +383,7 @@ fn transformClasses(self: *Transformer) ![]Data.Class {
         }
 
         const constants = @constCast(if (class.constants) |constants| try self.transformClassConstants(constants) else &.{});
-        const enums = @constCast(if (class.enums) |enums| try self.transformClassEnums(enums) else &.{});
+        const class_enums_and_flags = if (class.enums) |enums| try self.transformClassEnums(enums) else ClassEnumsAndFlags{ .enums = &.{}, .flags = &.{} };
         const properties = @constCast(if (class.properties) |properties| try self.transformClassProperties(properties) else &.{});
 
         result[i] = Data.Class{
@@ -393,8 +393,10 @@ fn transformClasses(self: *Transformer) ![]Data.Class {
             .is_instantiable = class.is_instantiable,
             .has_constants = constants.len > 0,
             .constants = constants,
-            .has_enums = enums.len > 0,
-            .enums = enums,
+            .has_enums = class_enums_and_flags.enums.len > 0,
+            .enums = class_enums_and_flags.enums,
+            .has_flags = class_enums_and_flags.flags.len > 0,
+            .flags = class_enums_and_flags.flags,
             .has_properties = properties.len > 0,
             .properties = properties,
             .has_static_methods = static_methods.items.len > 0,
@@ -419,48 +421,88 @@ fn transformClassConstants(self: *Transformer, constants: []Schema.Class.Constan
     return result;
 }
 
-fn transformClassEnums(self: *Transformer, enums: []Schema.Class.Enum) ![]Data.Class.Enum {
-    var result = try self.allocator.alloc(Data.Class.Enum, enums.len);
-    for (enums, 0..) |enum_def, i| {
-        var values = try self.allocator.alloc(Data.Class.Enum.Value, enum_def.values.len);
+const ClassEnumsAndFlags = struct {
+    enums: []Data.Enum,
+    flags: []Data.Flag,
+};
 
-        // Find default value
-        const default: i64 = blk: {
-            for (enum_def.values) |value| {
-                if (std.mem.endsWith(u8, value.name, "DEFAULT")) {
-                    break :blk value.value;
+fn transformClassEnums(self: *Transformer, enums: []Schema.Class.Enum) !ClassEnumsAndFlags {
+    var enum_list = std.ArrayList(Data.Enum).init(self.allocator);
+    var flag_list = std.ArrayList(Data.Flag).init(self.allocator);
+
+    for (enums) |enum_def| {
+        if (enum_def.is_bitfield) {
+            // Transform as flag
+            var const_capacity: u32 = 0;
+            var field_capacity: u32 = 0;
+            for (enum_def.values) |value_def| {
+                const is_field = value_def.value > 0 and (value_def.value & (value_def.value - 1)) == 0;
+                if (is_field) {
+                    field_capacity += 1;
+                } else {
+                    const_capacity += 1;
                 }
             }
-            break :blk 0;
-        };
 
-        var current_bit: u6 = 0;
-        for (enum_def.values, 0..) |value, j| {
-            const is_field = value.value > 0 and (value.value & (value.value - 1)) == 0;
-            const is_default = std.mem.endsWith(u8, value.name, "DEFAULT") or (default & value.value) == value.value;
-            const bit_pos = if (is_field) @ctz(value.value) else 0;
+            var consts = try std.ArrayListUnmanaged(Data.Flag.Const).initCapacity(self.allocator, const_capacity);
+            var fields = try std.ArrayListUnmanaged(Data.Flag.Value).initCapacity(self.allocator, field_capacity);
 
-            if (is_field and value.value >= (@as(i64, 1) << current_bit)) {
-                current_bit = @intCast(bit_pos + 1);
+            // Find default value
+            const default: i64 = blk: {
+                for (enum_def.values) |value| {
+                    if (std.mem.endsWith(u8, value.name, "DEFAULT")) {
+                        break :blk value.value;
+                    }
+                }
+                break :blk 0;
+            };
+
+            for (enum_def.values) |value| {
+                const is_field = value.value > 0 and (value.value & (value.value - 1)) == 0;
+                const is_default = std.mem.endsWith(u8, value.name, "DEFAULT") or (default & value.value) == value.value;
+
+                if (is_field) {
+                    fields.appendAssumeCapacity(.{
+                        .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                        .value = @intFromBool(is_default),
+                    });
+                } else {
+                    consts.appendAssumeCapacity(.{
+                        .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                        .value = value.value,
+                    });
+                }
             }
 
-            values[j] = Data.Class.Enum.Value{
-                .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
-                .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
-                .is_field = is_field,
-                .is_default = is_default,
-                .bit_pos = @intCast(bit_pos),
-            };
-        }
+            try flag_list.append(Data.Flag{
+                .name = try self.formatName(Data.Name.type_(enum_def.name)),
+                .has_consts = consts.items.len > 0,
+                .consts = consts.items,
+                .has_values = fields.items.len > 0,
+                .values = fields.items,
+            });
+        } else {
+            // Transform as enum
+            var values = try self.allocator.alloc(Data.Enum.Value, enum_def.values.len);
+            for (enum_def.values, 0..) |value, j| {
+                values[j] = Data.Enum.Value{
+                    .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                    .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
+                };
+            }
 
-        result[i] = Data.Class.Enum{
-            .name = try self.formatName(Data.Name.type_(enum_def.name)),
-            .is_bitfield = enum_def.is_bitfield,
-            .has_values = values.len > 0,
-            .values = values,
-        };
+            try enum_list.append(Data.Enum{
+                .name = try self.formatName(Data.Name.type_(enum_def.name)),
+                .has_values = values.len > 0,
+                .values = values,
+            });
+        }
     }
-    return result;
+
+    return ClassEnumsAndFlags{
+        .enums = try enum_list.toOwnedSlice(),
+        .flags = try flag_list.toOwnedSlice(),
+    };
 }
 
 fn transformClassProperties(self: *Transformer, properties: []Schema.Class.Property) ![]Data.Class.Property {

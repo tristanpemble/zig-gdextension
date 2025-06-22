@@ -6,9 +6,9 @@ classes: []Class = &.{},
 has_constants: bool,
 constants: []GlobalConstant = &.{},
 has_enums: bool,
-enums: []GlobalEnum = &.{},
+enums: []Enum = &.{},
 has_flags: bool,
-flags: []GlobalFlag = &.{},
+flags: []Flag = &.{},
 has_functions: bool,
 functions: []Function = &.{},
 
@@ -16,6 +16,40 @@ pub const Interface = struct {
     name: []const u8 = "",
     proc_name: []const u8 = "",
     type: []const u8 = "",
+};
+
+pub const Enum = struct {
+    doc: []const u8 = "",
+    name: []const u8 = "",
+    has_values: bool = false,
+    values: []Value = &.{},
+
+    pub const Value = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        value: []const u8 = "",
+    };
+};
+
+pub const Flag = struct {
+    doc: []const u8 = "",
+    name: []const u8 = "",
+    has_values: bool = false,
+    values: []Value = &.{},
+    has_consts: bool = false,
+    consts: []Const = &.{},
+
+    pub const Value = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        value: u1 = 0,
+    };
+
+    pub const Const = struct {
+        doc: []const u8 = "",
+        name: []const u8 = "",
+        value: i64,
+    };
 };
 
 pub const Builtin = struct {
@@ -74,19 +108,6 @@ pub const Builtin = struct {
             type: []const u8 = "",
         };
     };
-
-    pub const Enum = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        has_values: bool,
-        values: []Value = &.{},
-
-        pub const Value = struct {
-            doc: []const u8 = "",
-            name: []const u8 = "",
-            value: []const u8 = "",
-        };
-    };
 };
 
 pub const Class = struct {
@@ -99,6 +120,8 @@ pub const Class = struct {
     constants: []Constant = &.{},
     has_enums: bool,
     enums: []Enum = &.{},
+    has_flags: bool,
+    flags: []Flag = &.{},
     has_properties: bool,
     properties: []Property = &.{},
     has_static_methods: bool,
@@ -112,23 +135,6 @@ pub const Class = struct {
         doc: []const u8 = "",
         name: []const u8 = "",
         value: []const u8 = "",
-    };
-
-    pub const Enum = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        is_bitfield: bool = false,
-        has_values: bool = false,
-        values: []Value = &.{},
-
-        pub const Value = struct {
-            doc: []const u8 = "",
-            name: []const u8 = "",
-            value: []const u8 = "",
-            is_field: bool = false,
-            is_default: bool = false,
-            bit_pos: u6 = 0,
-        };
     };
 
     pub const Property = struct {
@@ -160,40 +166,6 @@ pub const GlobalConstant = struct {
     doc: []const u8 = "",
     name: []const u8 = "",
     value: []const u8 = "",
-};
-
-pub const GlobalEnum = struct {
-    doc: []const u8 = "",
-    name: []const u8 = "",
-    has_values: bool,
-    values: []Value = &.{},
-
-    pub const Value = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        value: []const u8 = "",
-    };
-};
-
-pub const GlobalFlag = struct {
-    doc: []const u8 = "",
-    name: []const u8 = "",
-    has_consts: bool,
-    consts: []Const = &.{},
-    has_fields: bool,
-    fields: []Field = &.{},
-
-    pub const Const = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        value: i64,
-    };
-
-    pub const Field = struct {
-        doc: []const u8 = "",
-        name: []const u8 = "",
-        value: u1,
-    };
 };
 
 pub const Function = struct {
