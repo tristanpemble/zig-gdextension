@@ -31,9 +31,9 @@ pub fn renderRoot(allocator: Allocator, path: fs.Dir, data: Data) !void {
     });
     defer file.close();
 
-    const writer = file.writer();
-
-    try mustache.render(getTemplate(allocator, template.root), data, writer);
+    var buf = std.io.bufferedWriter(file.writer());
+    try mustache.render(getTemplate(allocator, template.root), data, buf.writer());
+    try buf.flush();
 }
 
 pub fn renderBuiltin(allocator: Allocator, dir: fs.Dir, builtin: Data.Builtin) !void {
@@ -43,13 +43,13 @@ pub fn renderBuiltin(allocator: Allocator, dir: fs.Dir, builtin: Data.Builtin) !
     });
     defer file.close();
 
-    const writer = file.writer();
-
+    var buf = std.io.bufferedWriter(file.writer());
     try mustache.renderPartials(getTemplate(allocator, template.builtin), .{
         .{ "enum", getTemplate(allocator, template.enum_) },
         .{ "flag", getTemplate(allocator, template.flag) },
         .{ "signature", getTemplate(allocator, template.signature) },
-    }, builtin, writer);
+    }, builtin, buf.writer());
+    try buf.flush();
 }
 
 pub fn renderClass(allocator: Allocator, dir: fs.Dir, class: Data.Class) !void {
@@ -59,13 +59,13 @@ pub fn renderClass(allocator: Allocator, dir: fs.Dir, class: Data.Class) !void {
     });
     defer file.close();
 
-    const writer = file.writer();
-
+    var buf = std.io.bufferedWriter(file.writer());
     try mustache.renderPartials(getTemplate(allocator, template.class), .{
         .{ "enum", getTemplate(allocator, template.enum_) },
         .{ "flag", getTemplate(allocator, template.flag) },
         .{ "signature", getTemplate(allocator, template.signature) },
-    }, class, writer);
+    }, class, buf.writer());
+    try buf.flush();
 }
 
 pub fn renderEnum(allocator: Allocator, dir: fs.Dir, enum_: Data.Enum) !void {
@@ -75,9 +75,9 @@ pub fn renderEnum(allocator: Allocator, dir: fs.Dir, enum_: Data.Enum) !void {
     });
     defer file.close();
 
-    const writer = file.writer();
-
-    try mustache.renderPartials(getTemplate(allocator, template.enum_), .{}, enum_, writer);
+    var buf = std.io.bufferedWriter(file.writer());
+    try mustache.renderPartials(getTemplate(allocator, template.enum_), .{}, enum_, buf.writer());
+    try buf.flush();
 }
 
 pub fn renderFlag(allocator: Allocator, dir: fs.Dir, flag: Data.Flag) !void {
@@ -87,9 +87,9 @@ pub fn renderFlag(allocator: Allocator, dir: fs.Dir, flag: Data.Flag) !void {
     });
     defer file.close();
 
-    const writer = file.writer();
-
-    try mustache.renderPartials(getTemplate(allocator, template.flag), .{}, flag, writer);
+    var buf = std.io.bufferedWriter(file.writer());
+    try mustache.renderPartials(getTemplate(allocator, template.flag), .{}, flag, buf.writer());
+    try buf.flush();
 }
 
 pub fn renderModule(allocator: Allocator, dir: fs.Dir, module: Data.Module) !void {
@@ -99,11 +99,11 @@ pub fn renderModule(allocator: Allocator, dir: fs.Dir, module: Data.Module) !voi
     });
     defer file.close();
 
-    const writer = file.writer();
-
+    var buf = std.io.bufferedWriter(file.writer());
     try mustache.renderPartials(getTemplate(allocator, template.module), .{
         .{ "signature", getTemplate(allocator, template.signature) },
-    }, module, writer);
+    }, module, buf.writer());
+    try buf.flush();
 }
 
 fn getTemplate(allocator: Allocator, comptime text: []const u8) mustache.Template {

@@ -65,20 +65,20 @@ pub const interface =
 ;
 
 pub const builtin =
-    \\/// {{doc}}
+    \\/// {{description}}
     \\pub const {{name}} = extern struct {
     \\    {{#members}}
-    \\    /// {{{doc}}}
+    \\    /// {{{description}}}
     \\    {{{name}}}: {{{type}}},
     \\
     \\    {{/members}}
     \\    {{#constants}}
-    \\    /// {{{doc}}}
+    \\    /// {{{description}}}
     \\    pub const {{{name}}}: {{{type}}} = {{{value}}};
     \\
     \\    {{/constants}}
     \\    {{#constructors}}
-    \\    /// {{{doc}}}
+    \\    /// {{{description}}}
     \\    {{>signature}}
     \\        var constructor = struct {
     \\            var method: gd.c.{{{type}}} = null;
@@ -101,7 +101,7 @@ pub const builtin =
     \\
     \\    {{/constructors}}
     \\    {{#methods}}
-    \\    /// {{{doc}}}
+    \\    /// {{{description}}}
     \\    {{>signature}}
     \\        var method = struct {
     \\            var method: gd.c.{{{type}}} = null;
@@ -123,7 +123,9 @@ pub const builtin =
     \\    }
     \\
     \\    {{/methods}}
+    \\
     \\    {{#enums}}
+    \\
     \\    {{>enum}}
     \\
     \\    {{/enums}}
@@ -135,14 +137,14 @@ pub const builtin =
 ;
 
 pub const class =
-    \\/// {{doc}}
+    \\/// {{description}}
     \\pub const {{name}} = extern struct {
     \\    {{#inherits}}
     \\    base: {{inherits}},
     \\
     \\    {{/inherits}}
     \\    {{#constants}}
-    \\    /// {{{doc}}}
+    \\    /// {{{description}}}
     \\    pub const {{{name}}}: i64 = {{{value}}};
     \\
     \\    {{/constants}}
@@ -152,30 +154,30 @@ pub const class =
     \\    }
     \\
     \\    {{/is_instantiable}}
-    // \\    {{#properties}}
-    // \\    pub fn {{{getter}}}(self: *const @This()) {{{type}}} {
-    // \\    }
-    // \\
-    // \\    {{#has_setter}}
-    // \\    pub fn {{{setter}}}(self: *@This(), value: {{{type}}}) void {
-    // \\    }
-    // \\
-    // \\    {{/has_setter}}
-    // \\    {{/properties}}
+    \\    {{#properties}}
+    \\    pub fn {{{getter}}}(self: *const @This()) {{{type}}} {
+    \\    }
+    \\
+    \\    {{#has_setter}}
+    \\    pub fn {{{setter}}}(self: *@This(), value: {{{type}}}) void {
+    \\    }
+    \\
+    \\    {{/has_setter}}
+    \\    {{/properties}}
     \\    {{#static_methods}}
-    \\    /// {{doc}}
+    \\    /// {{description}}
     \\    {{>signature}}
     \\    }
     \\
     \\    {{/static_methods}}
     \\    {{#methods}}
-    \\    /// {{doc}}
+    \\    /// {{description}}
     \\    {{>signature}}
     \\    }
     \\
     \\    {{/methods}}
     \\    {{#virtual_methods}}
-    \\    /// {{doc}}
+    \\    /// {{description}}
     \\    {{>signature}}
     \\    }
     \\
@@ -202,10 +204,13 @@ pub const class =
     \\    {{/is_singleton}}
     \\};
     \\
+    \\const std = @import("std");
+    \\const gd = @import("godot");
+    \\
 ;
 
 pub const enum_ =
-    \\/// {{{doc}}}
+    \\/// {{{description}}}
     \\pub const {{name}} = enum(i32) {
     \\    {{#values}}
     \\    {{{name}}} = {{{value}}},
@@ -216,7 +221,7 @@ pub const enum_ =
 
 pub const flag =
     // The extraneous newlines are because of https://github.com/batiati/mustache-zig/issues/29
-    \\/// {{doc}}
+    \\/// {{description}}
     \\pub const {{name}} = packed struct(i32) {
     \\    {{#values}}
     \\    {{{name}}}: u1 = {{value}},
@@ -230,10 +235,10 @@ pub const flag =
 ;
 
 pub const module =
-    \\///! {{doc}}
+    \\///! {{description}}
     \\
     \\{{#functions}}
-    \\/// {{{doc}}}
+    \\/// {{{description}}}
     \\{{>signature}}
     \\    @panic("todo");
     \\}

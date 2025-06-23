@@ -36,6 +36,8 @@ pub const Header = struct {
 
 pub const Builtin = struct {
     name: []const u8,
+    brief_description: []const u8 = "",
+    description: []const u8 = "",
     indexing_return_type: ?[]const u8 = null,
     is_keyed: bool,
     members: ?[]Member = null,
@@ -48,6 +50,7 @@ pub const Builtin = struct {
 
     pub const Constructor = struct {
         index: i64,
+        description: []const u8 = "",
         arguments: ?[]Argument = null,
 
         pub const Argument = struct {
@@ -60,27 +63,32 @@ pub const Builtin = struct {
 
     pub const Constant = struct {
         name: []const u8,
+        description: []const u8 = "",
         type: []const u8,
         value: []const u8,
     };
 
     pub const Enum = struct {
         name: []const u8,
+        description: []const u8 = "",
         values: []Value,
 
         pub const Value = struct {
             name: []const u8,
+            description: []const u8 = "",
             value: i64,
         };
     };
 
     pub const Member = struct {
         name: []const u8,
+        description: []const u8 = "",
         type: []const u8,
     };
 
     pub const Method = struct {
         name: []const u8,
+        description: []const u8 = "",
         return_type: []const u8 = "void",
         is_vararg: bool,
         is_const: bool,
@@ -98,6 +106,7 @@ pub const Builtin = struct {
 
     pub const Operator = struct {
         name: []const u8,
+        description: []const u8 = "",
         right_type: ?[]const u8 = null,
         return_type: []const u8,
     };
@@ -133,22 +142,27 @@ pub const BuildConfig = struct {
 
 pub const GlobalConstant = struct {
     name: []const u8,
+    description: []const u8 = "",
     value: []const u8,
 };
 
 pub const GlobalEnum = struct {
     name: []const u8,
-    is_bitfield: bool,
+    description: []const u8 = "",
     values: []Value,
+    is_bitfield: bool,
 
     pub const Value = struct {
         name: []const u8,
+        description: []const u8 = "",
         value: i64,
     };
 };
 
 pub const Class = struct {
     name: []const u8,
+    brief_description: []const u8 = "",
+    description: []const u8 = "",
     is_refcounted: bool,
     is_instantiable: bool,
     inherits: ?[]const u8 = null,
@@ -161,22 +175,26 @@ pub const Class = struct {
 
     pub const Constant = struct {
         name: []const u8,
+        description: []const u8 = "",
         value: i64,
     };
 
     pub const Enum = struct {
         name: []const u8,
-        is_bitfield: bool,
+        description: []const u8 = "",
         values: []Value,
+        is_bitfield: bool,
 
         pub const Value = struct {
             name: []const u8,
+            description: []const u8 = "",
             value: i64,
         };
     };
 
     pub const Method = struct {
         name: []const u8,
+        description: []const u8 = "",
         is_const: bool,
         is_static: bool,
         is_required: bool = false,
@@ -202,15 +220,17 @@ pub const Class = struct {
     };
 
     pub const Property = struct {
-        type: []const u8,
+        index: i64 = -1,
         name: []const u8,
+        description: []const u8 = "",
+        type: []const u8,
         setter: ?[]const u8 = null,
         getter: []const u8,
-        index: i64 = -1,
     };
 
     pub const Signal = struct {
         name: []const u8,
+        description: []const u8 = "",
         arguments: ?[]Argument = null,
 
         pub const Argument = struct {
@@ -234,6 +254,7 @@ pub const Singleton = struct {
 
 pub const UtilityFunction = struct {
     name: []const u8,
+    description: []const u8 = "",
     return_type: ?[]const u8 = null,
     category: []const u8,
     is_vararg: bool,

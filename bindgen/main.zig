@@ -9,8 +9,8 @@ pub fn main() !void {
     _ = args.skip();
 
     const dir = try fs.cwd().openDir(args.next() orelse ".", .{});
-    const interface = try dir.readFileAlloc(allocator, "gdextension_interface.h", 10 * 1024 * 1024);
-    const extension_api = try dir.readFileAlloc(allocator, "extension_api.json", 10 * 1024 * 1024);
+    const interface = try dir.readFileAlloc(allocator, "gdextension_interface.h", 20 * 1024 * 1024);
+    const extension_api = try dir.readFileAlloc(allocator, "extension_api.json", 20 * 1024 * 1024);
     const out = try dir.makeOpenPath("out", .{
         .access_sub_paths = true,
     });

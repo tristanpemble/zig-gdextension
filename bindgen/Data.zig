@@ -19,20 +19,20 @@ pub const Interface = struct {
 };
 
 pub const Enum = struct {
-    doc: []const u8 = "",
+    description: []const u8 = "",
     name: []const u8 = "",
     has_values: bool = false,
     values: []Value = &.{},
 
     pub const Value = struct {
-        doc: []const u8 = "",
+        description: []const u8 = "",
         name: []const u8 = "",
         value: []const u8 = "",
     };
 };
 
 pub const Flag = struct {
-    doc: []const u8 = "",
+    description: []const u8 = "",
     name: []const u8 = "",
     has_values: bool = false,
     values: []Value = &.{},
@@ -40,20 +40,20 @@ pub const Flag = struct {
     consts: []Const = &.{},
 
     pub const Value = struct {
-        doc: []const u8 = "",
+        description: []const u8 = "",
         name: []const u8 = "",
         value: u1 = 0,
     };
 
     pub const Const = struct {
-        doc: []const u8 = "",
+        description: []const u8 = "",
         name: []const u8 = "",
         value: i64,
     };
 };
 
 pub const Builtin = struct {
-    doc: []const u8 = "",
+    description: []const u8 = "",
     name: []const u8,
     has_members: bool,
     members: []Member = &.{},
@@ -67,13 +67,13 @@ pub const Builtin = struct {
     enums: []Enum = &.{},
 
     pub const Member = struct {
-        doc: []const u8 = "",
+        description: []const u8 = "",
         name: []const u8 = "",
         type: []const u8 = "",
     };
 
     pub const Constant = struct {
-        doc: []const u8 = "",
+        description: []const u8 = "",
         name: []const u8 = "",
         type: []const u8 = "",
         value: []const u8 = "",
@@ -81,7 +81,7 @@ pub const Builtin = struct {
 };
 
 pub const Class = struct {
-    doc: []const u8 = "",
+    description: []const u8 = "",
     name: []const u8,
     inherits: ?[]const u8 = null,
     is_singleton: bool = false,
@@ -102,13 +102,13 @@ pub const Class = struct {
     virtual_methods: []Method = &.{},
 
     pub const Constant = struct {
-        doc: []const u8 = "",
+        description: []const u8 = "",
         name: []const u8 = "",
         value: []const u8 = "",
     };
 
     pub const Property = struct {
-        doc: []const u8 = "",
+        description: []const u8 = "",
         name: []const u8 = "",
         type: []const u8 = "",
         getter: []const u8 = "",
@@ -118,20 +118,20 @@ pub const Class = struct {
 };
 
 pub const GlobalConstant = struct {
-    doc: []const u8 = "",
+    description: []const u8 = "",
     name: []const u8 = "",
     value: []const u8 = "",
 };
 
 pub const Module = struct {
-    doc: []const u8 = "",
+    description: []const u8 = "",
     name: []const u8 = "",
     has_functions: bool,
     functions: []Method = &.{},
 };
 
 pub const Method = struct {
-    doc: []const u8 = "",
+    description: []const u8 = "",
     name: []const u8 = "",
     type: ?[]const u8 = "",
     offset: usize,

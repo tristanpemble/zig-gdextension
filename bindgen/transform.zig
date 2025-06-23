@@ -115,6 +115,7 @@ fn transformGlobalConstants(self: *Transformer) ![]Data.GlobalConstant {
     for (self.json.global_constants, 0..) |constant, i| {
         result[i] = Data.GlobalConstant{
             .name = try self.formatName(Data.Name.val(constant.name)),
+            .description = constant.description,
             .value = try self.allocator.dupe(u8, constant.value),
         };
     }
@@ -137,12 +138,14 @@ fn transformGlobalEnums(self: *Transformer) ![]Data.Enum {
         for (enum_def.values, 0..) |value, j| {
             values[j] = Data.Enum.Value{
                 .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                .description = value.description,
                 .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
             };
         }
 
         result.appendAssumeCapacity(Data.Enum{
             .name = try self.formatName(Data.Name.type_(enum_def.name)),
+            .description = enum_def.description,
             .has_values = values.len > 0,
             .values = values,
         });
@@ -198,11 +201,13 @@ fn transformGlobalFlags(self: *Transformer) ![]Data.Flag {
             if (is_field) {
                 fields.appendAssumeCapacity(.{
                     .name = try self.formatName(enumFieldName(flag_def.name, value.name)),
+                    .description = value.description,
                     .value = @intFromBool(is_default),
                 });
             } else {
                 consts.appendAssumeCapacity(.{
                     .name = try self.formatName(enumFieldName(flag_def.name, value.name)),
+                    .description = value.description,
                     .value = value.value,
                 });
             }
@@ -210,6 +215,7 @@ fn transformGlobalFlags(self: *Transformer) ![]Data.Flag {
 
         result.appendAssumeCapacity(Data.Flag{
             .name = try self.formatName(Data.Name.type_(flag_def.name)),
+            .description = flag_def.description,
             .has_consts = consts.items.len > 0,
             .consts = consts.items,
             .has_values = fields.items.len > 0,
@@ -233,6 +239,7 @@ fn transformBuiltins(self: *Transformer) ![]Data.Builtin {
 
         result[i] = Data.Builtin{
             .name = formatted_name,
+            .description = try std.fmt.allocPrint(self.allocator, "{s}\n{s}", .{ builtin.brief_description, builtin.description }),
             .has_members = members.len > 0,
             .members = members,
             .has_constants = constants.len > 0,
@@ -253,6 +260,7 @@ fn transformBuiltinMembers(self: *Transformer, members: []Schema.Builtin.Member)
     for (members, 0..) |member, i| {
         result[i] = Data.Builtin.Member{
             .name = try self.formatName(Data.Name.val(member.name)),
+            .description = member.description,
             .type = try self.formatName(Data.Name.type_(member.type)),
         };
     }
@@ -264,6 +272,7 @@ fn transformBuiltinConstants(self: *Transformer, constants: []Schema.Builtin.Con
     for (constants, 0..) |constant, i| {
         result[i] = Data.Builtin.Constant{
             .name = try self.formatName(Data.Name.val(constant.name)),
+            .description = constant.description,
             .type = try self.formatName(Data.Name.type_(constant.type)),
             .value = try self.allocator.dupe(u8, constant.value),
         };
@@ -277,6 +286,7 @@ fn transformBuiltinConstructors(self: *Transformer, constructors: []Schema.Built
         const args = @constCast(if (constructor.arguments) |args| try self.transformBuiltinConstructorArgs(args) else &.{});
         result[i] = Data.Method{
             .name = try std.fmt.allocPrint(self.allocator, "init{d}", .{constructor.index}),
+            .description = constructor.description,
             .type = "GDExtensionPtrConstructor",
             .offset = @intCast(constructor.index),
             .hash = 0,
@@ -307,6 +317,7 @@ fn transformBuiltinMethods(self: *Transformer, methods: []Schema.Builtin.Method)
         const args = @constCast(if (method.arguments) |args| try self.transformBuiltinMethodArgs(args) else &.{});
         result[i] = Data.Method{
             .name = try self.formatName(Data.Name.func(method.name)),
+            .description = method.description,
             .type = "GDExtensionPtrBuiltInMethod",
             .offset = i,
             .hash = method.hash,
@@ -340,12 +351,14 @@ fn transformBuiltinEnums(self: *Transformer, enums: []Schema.Builtin.Enum) ![]Da
         for (enum_def.values, 0..) |value, j| {
             values[j] = Data.Enum.Value{
                 .name = try self.formatName(Data.Name.val(value.name)),
+                .description = value.description,
                 .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
             };
         }
 
         result[i] = Data.Enum{
             .name = try self.formatName(Data.Name.type_(enum_def.name)),
+            .description = enum_def.description,
             .has_values = values.len > 0,
             .values = values,
         };
@@ -371,6 +384,7 @@ fn transformClasses(self: *Transformer) ![]Data.Class {
 
                 const transformed_method = Data.Method{
                     .name = try self.formatName(method_name),
+                    .description = method.description,
                     .offset = i,
                     .hash = method.hash,
                     .is_static = method.is_static,
@@ -397,6 +411,7 @@ fn transformClasses(self: *Transformer) ![]Data.Class {
 
         result[i] = Data.Class{
             .name = try self.formatName(Data.Name.type_(class.name)),
+            .description = try std.fmt.allocPrint(self.allocator, "{s}\n{s}", .{ class.brief_description, class.description }),
             .is_singleton = self.is_singleton(class.name),
             .inherits = if (class.inherits) |inherits| try self.formatName(Data.Name.type_(inherits)) else null,
             .is_instantiable = class.is_instantiable,
@@ -424,6 +439,7 @@ fn transformClassConstants(self: *Transformer, constants: []Schema.Class.Constan
     for (constants, 0..) |constant, i| {
         result[i] = Data.Class.Constant{
             .name = try self.formatName(Data.Name.val(constant.name)),
+            .description = constant.description,
             .value = try std.fmt.allocPrint(self.allocator, "{d}", .{constant.value}),
         };
     }
@@ -473,11 +489,13 @@ fn transformClassEnums(self: *Transformer, enums: []Schema.Class.Enum) !ClassEnu
                 if (is_field) {
                     fields.appendAssumeCapacity(.{
                         .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                        .description = value.description,
                         .value = @intFromBool(is_default),
                     });
                 } else {
                     consts.appendAssumeCapacity(.{
                         .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                        .description = value.description,
                         .value = value.value,
                     });
                 }
@@ -485,6 +503,7 @@ fn transformClassEnums(self: *Transformer, enums: []Schema.Class.Enum) !ClassEnu
 
             try flag_list.append(Data.Flag{
                 .name = try self.formatName(Data.Name.type_(enum_def.name)),
+                .description = enum_def.description,
                 .has_consts = consts.items.len > 0,
                 .consts = consts.items,
                 .has_values = fields.items.len > 0,
@@ -496,12 +515,14 @@ fn transformClassEnums(self: *Transformer, enums: []Schema.Class.Enum) !ClassEnu
             for (enum_def.values, 0..) |value, j| {
                 values[j] = Data.Enum.Value{
                     .name = try self.formatName(enumFieldName(enum_def.name, value.name)),
+                    .description = value.description,
                     .value = try std.fmt.allocPrint(self.allocator, "{d}", .{value.value}),
                 };
             }
 
             try enum_list.append(Data.Enum{
                 .name = try self.formatName(Data.Name.type_(enum_def.name)),
+                .description = enum_def.description,
                 .has_values = values.len > 0,
                 .values = values,
             });
@@ -519,6 +540,7 @@ fn transformClassProperties(self: *Transformer, properties: []Schema.Class.Prope
     for (properties, 0..) |property, i| {
         result[i] = Data.Class.Property{
             .name = try self.formatName(Data.Name.val(property.name)),
+            .description = property.description,
             .type = try self.formatName(Data.Name.type_(property.type)),
             .getter = try self.formatName(Data.Name.func(property.getter)),
             .has_setter = property.setter != null,
@@ -560,6 +582,7 @@ fn transformUtilityFunctions(self: *Transformer) ![]Data.Module {
 
         const function_def = Data.Method{
             .name = try self.formatName(Data.Name.func(func.name)),
+            .description = func.description,
             .offset = i,
             .hash = func.hash,
             .is_static = true,
